@@ -1,18 +1,21 @@
 ﻿open System
 
 let rec parseInitialState num stacks (stateRows: string list) =
-    let addItem (row: string) (stacks: char list array) num =
+    let addItem (row: string) (stacks: char list list) num =
         let idx = num * 4 + 1
 
         if row.Length > idx && row.[idx] <> ' ' then
-            stacks.[num] <- row.[idx] :: stacks.[num]
+            stacks
+            |> List.updateAt num (row.[idx] :: stacks[num])
         else
-            ()
+            stacks
 
     match stateRows with
     | [] -> stacks
     | row :: rest ->
-        seq { 0..num } |> Seq.iter (addItem row stacks)
+        let stacks =
+          seq { 0..num }
+          |> Seq.fold (addItem row) stacks
         parseInitialState num stacks rest
 
 let rec getInitialStateRows stateRows (rows: string list) =
@@ -41,9 +44,9 @@ let rec parseInstructions instructions (rows: string list) =
                 :: instructions
 
             parseInstructions instructions rest
-    | [] -> instructions
+    | [] -> instructions |> List.rev
 
-let rec run reverse (stacks: char list array) instructions =
+let rec run reverse (stacks: char list list) instructions =
     match instructions with
     | [] -> stacks
     | { Count = count; From = from; To = too } :: rest ->
@@ -52,43 +55,39 @@ let rec run reverse (stacks: char list array) instructions =
             |> List.take count
             |> if reverse then List.rev else id
 
-        stacks[from] <- stacks[from] |> List.skip count
+        let newStack =
+          stacks
+          |> List.updateAt from (stacks[from] |> List.skip count)
+          |> List.updateAt too (List.append toMove stacks[too])
 
-        stacks[too] <- List.append toMove stacks[too]
-
-        run reverse stacks rest
+        run reverse newStack rest
 
 let loadData () =
     let text = System.IO.File.ReadAllLines("./input.txt")
     let num, stateRows, instructions = text |> List.ofArray |> getInitialStateRows []
 
-    let stacks: char list array =
+    let stacks: char list list =
         seq { 0..num }
         |> Seq.map (fun _ -> List.empty<char>)
-        |> Seq.toArray
+        |> Seq.toList
 
-    parseInitialState num stacks stateRows, parseInstructions [] instructions |> List.rev
+    parseInitialState num stacks stateRows, parseInstructions [] instructions
 
 let stack, instructions = loadData ()
 
-let outputTop (stacks: char list array) =
-    let mapped: string [] =
+let outputTop (stacks: char list list) =
+    let mapped: string list =
         stacks
-        |> Array.map (function
+        |> List.map (function
             | ch :: _ -> string ch
             | [] -> String.Empty)
 
     String.Join("", mapped)
 
-let stack1 = stack |> Array.map id
-
-run true stack1 instructions
+run true stack instructions
 |> outputTop
 |> printfn "Part 1: %s"
 
-
-let stack2 = stack |> Array.map id
-
-run false stack2 instructions
+run false stack instructions
 |> outputTop
 |> printfn "Part 2: %s"
