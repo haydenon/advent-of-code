@@ -2,3 +2,4 @@ obj/
 bin/
 .ionide/
 .fake
+.vscode
