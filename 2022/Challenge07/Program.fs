@@ -4,12 +4,26 @@ type FsItem =
     | Dir of string * FsItem list
     | File of string * int64
 
+
+let (|Cd|_|) (line: string) =
+    if line.StartsWith("$ cd") then
+        let dir = line.Split(" ")[2]
+        Some dir
+    else
+        None
+
+let (|Ls|_|) (line: string) =
+    if line.StartsWith("$ ls") then
+        Some()
+    else
+        None
+
 let rec parseList currentDir (entries: string list) =
     match entries with
     | next :: rest ->
         if next.StartsWith("$") then
             currentDir, entries
-        else if next.StartsWith("dir") then
+        elif next.StartsWith("dir") then
             parseList currentDir rest
         else
             let parts = next.Split(" ")
@@ -19,21 +33,17 @@ let rec parseList currentDir (entries: string list) =
 
 let rec parseTree (dirName, files) (entries: string list) =
     match entries with
-    | entry :: rest ->
-        if entry.StartsWith("$ cd") then
-            let dir = entry.Split(" ")[2]
-
-            if dir = ".." then
-                Dir(dirName, files), rest
-            else
-                let subdir, rest = parseTree (dir, []) rest
-                parseTree (dirName, subdir :: files) rest
-        elif entry.StartsWith("$ ls") then
-            let dirFiles, rest = parseList [] rest
-            parseTree (dirName, List.append dirFiles files) rest
-        else
-            failwith "Invalid input"
     | [] -> Dir(dirName, files), []
+    | (Cd dir) :: rest ->
+        if dir = ".." then
+            Dir(dirName, files), rest
+        else
+            let subdir, rest = parseTree (dir, []) rest
+            parseTree (dirName, subdir :: files) rest
+    | (Ls) :: rest ->
+        let dirFiles, rest = parseList [] rest
+        parseTree (dirName, List.append dirFiles files) rest
+    | _ -> failwith "Invalid input"
 
 let loadData () =
     let text = System.IO.File.ReadAllLines("./input.txt")

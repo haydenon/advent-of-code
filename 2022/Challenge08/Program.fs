@@ -75,7 +75,6 @@ let findMaxTreeViewScore (grid: int [] []) =
                 elif grid[dy][dx] >= grid[y][x] then
                     trees + 1
                 else
-                    let newCurrent = grid[dy][dx]
                     scoreInDirection (trees + 1) rest
             | [] -> trees
 
