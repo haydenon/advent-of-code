@@ -20,8 +20,8 @@ let rec parseInstructions instructions (lines: string list) =
     | line :: rest -> parseInstructions ((parseInstruction line) :: instructions) rest
     | [] -> List.rev instructions
 
-let rec runInstructions (tailLocations) tcoords hcoords instructions =
-    let rec runStep instruction tailLocations (tx, ty) (hx, hy) =
+let rec runInstructions (allTailLocations: (int * int) list list) (coords: (int * int) list) instructions =
+    let rec runStep instruction (alltailLocations: (int * int) list list) coords =
         let stepCount =
             match instruction with
             | Up d -> d
@@ -30,8 +30,10 @@ let rec runInstructions (tailLocations) tcoords hcoords instructions =
             | Right d -> d
 
         if stepCount = 0 then
-            (tailLocations, (tx, ty), (hx, hy))
+            (alltailLocations, coords)
         else
+            let (hx, hy) = List.head coords
+
             let (hx, hy) =
                 match instruction with
                 | Up _ -> (hx, hy - 1)
@@ -39,21 +41,55 @@ let rec runInstructions (tailLocations) tcoords hcoords instructions =
                 | Left _ -> (hx - 1, hy)
                 | Right _ -> (hx + 1, hy)
 
-            let distance = max (abs (hx - tx)) (abs (hy - ty))
+            let coords = coords |> List.updateAt 0 (hx, hy)
 
-            let ((tx, ty), tailLocations) =
-                if distance >= 2 then
-                    let tx, ty =
-                        match instruction with
-                        | Up _ -> (hx, hy + 1)
-                        | Down _ -> (hx, hy - 1)
-                        | Left _ -> (hx + 1, hy)
-                        | Right _ -> (hx - 1, hy)
+            let rec updatePair coordTailLocationsPair (firstx, firsty) tails =
+                match tails with
+                | [] ->
+                    coordTailLocationsPair
+                    |> List.rev
+                    |> (fun ls -> (List.map fst ls, List.map snd ls))
+                | ((secx, secy), tailLocations) :: rest ->
+                    let distance = max (abs (firstx - secx)) (abs (firsty - secy))
 
-                    ((tx, ty), (tx, ty) :: tailLocations)
+                    let pair =
+                        if distance >= 2 then
+                            let secx, secy =
+                                if secx = firstx then
+                                    (secx,
+                                     (if firsty > secy then
+                                          (firsty - 1)
+                                      else
+                                          (firsty + 1)))
+                                elif secy = firsty then
+                                    ((if firstx > secx then
+                                          (firstx - 1)
+                                      else
+                                          (firstx + 1)),
+                                     secy)
+                                elif firstx - secx > 0 && firsty - secy > 0 then
+                                    (secx + 1, secy + 1)
+                                elif firstx - secx < 0 && firsty - secy > 0 then
+                                    (secx - 1, secy + 1)
+                                elif firstx - secx > 0 && firsty - secy < 0 then
+                                    (secx + 1, secy - 1)
+                                else
+                                    (secx - 1, secy - 1)
 
-                else
-                    ((tx, ty), tailLocations)
+                            ((secx, secy), (secx, secy) :: tailLocations)
+
+                        else
+                            ((secx, secy), tailLocations)
+
+                    updatePair (pair :: coordTailLocationsPair) (fst pair) rest
+
+            let head = List.head coords
+
+            let tailsWithLocations =
+                alltailLocations
+                |> List.zip (coords |> List.skip 1)
+
+            let (tailCoords, allTailLocations) = updatePair [] head tailsWithLocations
 
             let nextStep =
                 match instruction with
@@ -62,15 +98,15 @@ let rec runInstructions (tailLocations) tcoords hcoords instructions =
                 | Left _ -> Left(stepCount - 1)
                 | Right _ -> Right(stepCount - 1)
 
-            runStep nextStep tailLocations (tx, ty) (hx, hy)
+            runStep nextStep allTailLocations (head :: tailCoords)
 
     match instructions with
     | instruction :: rest ->
-        let tailLocations, tcoords, hcoords =
-            runStep instruction tailLocations tcoords hcoords
+        let tailLocations, coords = runStep instruction allTailLocations coords
 
-        runInstructions tailLocations tcoords hcoords rest
-    | [] -> tailLocations
+        runInstructions tailLocations coords rest
+    | [] ->
+        allTailLocations
 
 let loadData () =
     let text = System.IO.File.ReadAllLines("./input.txt")
@@ -80,11 +116,22 @@ let loadData () =
 
 let data = loadData ()
 
-let tailLocations = [ (0, 0) ]
+let tailLocations1 = (List.init 1 (fun _ -> [ (0, 0) ]))
 
 data
-// |> List.take 3
-|> runInstructions tailLocations (0, 0) (0, 0)
+|> runInstructions tailLocations1 [ (0, 0); (0, 0) ]
+|> List.head
 |> Set.ofList
 |> Set.count
-|> printfn "%d"
+|> printfn "Part 1: %d"
+
+
+let tailLocations2 = (List.init 9 (fun _ -> [ (0, 0) ]))
+
+data
+|> runInstructions tailLocations2 (List.init 10 (fun _ -> (0, 0)))
+|> List.skip 8
+|> List.head
+|> Set.ofList
+|> Set.count
+|> printfn "Part 2: %d"
