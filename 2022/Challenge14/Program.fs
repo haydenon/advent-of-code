@@ -53,32 +53,34 @@ let getGrid ((minx, miny), (maxx, maxy)) (paths: (int * int) list list) =
 let printGrid (orig: bool [] []) (filled: bool [] []) =
     let xSize = Array.length orig[0]
     let ySize = Array.length orig
+
     let printLine line =
-        Seq.zip (seq {0..(xSize - 1)} ) (Seq.replicate xSize line)
-        |> Seq.map (fun (x,y)-> if orig[y][x] then '#' elif filled[y][x] then 'o' else '.')
+        Seq.zip (seq { 0 .. (xSize - 1) }) (Seq.replicate xSize line)
+        |> Seq.map (fun (x, y) ->
+            if orig[y][x] then '#'
+            elif filled[y][x] then 'o'
+            else '.')
         |> Seq.toArray
         |> (fun chars -> new System.String(chars))
         |> printfn "%s"
 
 
-    (seq {0..(ySize - 1)} )
+    (seq { 0 .. (ySize - 1) })
     |> Seq.toList
     |> List.iter printLine
 
 
-let placeSand ((grid: bool [] []), ((minx, _), _)) =
+let placeSand canGoOutOfBounds ((grid: bool [] []), ((minx, _), _)) =
     let xSize = Array.length grid[0]
     let ySize = Array.length grid
     let newGrid = Array.map (Array.map id) grid
-
-    printGrid grid newGrid
 
     let outOfBounds (x, y) =
         x - minx < 0 || x - minx >= xSize || y >= ySize
 
     let isFilled (x, y) =
         if outOfBounds (x, y) then
-            false
+            not (canGoOutOfBounds)
         else
             newGrid[y][x - minx]
 
@@ -86,8 +88,10 @@ let placeSand ((grid: bool [] []), ((minx, _), _)) =
 
     let rec placeSandUnit (sx, sy) =
         if outOfBounds (sx, sy) then
-            // printfn "%d %d" sx sy
-            None
+            if canGoOutOfBounds then
+                None
+            else
+                Some(sx, sy)
         elif not (isFilled (sx, sy + 1)) then
             placeSandUnit (sx, sy + 1)
         elif not (isFilled (sx - 1, sy + 1)) then
@@ -96,10 +100,9 @@ let placeSand ((grid: bool [] []), ((minx, _), _)) =
             placeSandUnit (sx + 1, sy + 1)
         else
             fill (sx, sy)
-            // printGrid newGrid
             Some(sx, sy)
 
-    Seq.replicate Int32.MaxValue (500, 0)
+    Seq.replicate 30000 (500, 0)
     |> Seq.map placeSandUnit
     |> Seq.takeWhile Option.isSome
     |> Seq.toList
@@ -118,18 +121,13 @@ let data = loadData ()
 
 let grid = data |> fst
 
-printfn "%d %d" (Array.length (grid[0])) (data |> snd |> fst |> fst)
-
-
 let originalCount =
     grid
     |> Array.collect id
     |> Array.filter id
     |> Array.length
 
-let filled = data |> placeSand
-
-printGrid grid filled
+let filled = data |> placeSand true
 
 let newCount =
     filled
@@ -138,3 +136,39 @@ let newCount =
     |> Array.length
 
 (newCount - originalCount) |> printfn "Part 1: %d"
+
+
+let xSize = Array.length grid[0]
+let ySize = Array.length grid
+let minx = data |> snd |> fst |> fst
+
+let part2Grid =
+    Array.init (ySize + 2) (fun y ->
+        Array.init (xSize + 800) (fun x ->
+            if y < ySize && x >= 400 && (x - 400) < xSize then
+                grid[y][x - 400]
+            else
+                false))
+
+seq { 0 .. (xSize + 800 - 1) }
+|> Seq.toList
+|> List.iter (fun x -> part2Grid[ySize + 1][x] <- true)
+
+let ((_, miny), (maxx, maxy)) = data |> snd
+let minMax2 = ((minx - 400, miny), (maxx + 400, maxy + 2))
+let part2Data = (part2Grid, minMax2)
+let filled2 = part2Data |> placeSand false
+
+let originalCount2 =
+    part2Grid
+    |> Array.collect id
+    |> Array.filter id
+    |> Array.length
+
+let newCount2 =
+    filled2
+    |> Array.collect id
+    |> Array.filter id
+    |> Array.length
+
+(newCount2 - originalCount2) |> printfn "Part 2: %d"
