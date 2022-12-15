@@ -47,6 +47,37 @@ let findAtRow row sensors =
     |> Seq.map (fun coord -> isCovered coord && not (hasBeacon coord))
     |> Seq.toList
 
+let findPosition sensors =
+    let getRangeAtRow row (Sensor ((x, y), dist, _)) =
+        let offset = abs (row - y)
+        let widthAtRow = abs (dist - offset)
+        (x - widthAtRow, x + widthAtRow)
+
+    let getRangesForRow row =
+        let inRange =
+            sensors
+            |> List.filter (function
+                | Sensor ((_, y), dist, _) -> y + dist >= row && y - dist <= row)
+
+        inRange
+        |> List.map (getRangeAtRow row)
+        |> List.sortBy fst
+
+    let rec mergeRanges newRanges ranges =
+        match ranges with
+        | (s1, e1) :: (s2, e2) :: rest when e1 >= s2 ->
+            mergeRanges newRanges ((s1, (if e1 > e2 then e1 else e2)) :: rest)
+        | (s1, e1) :: (s2, e2) :: rest -> mergeRanges ((s1, e1) :: newRanges) ((s2, e2) :: rest)
+        | s1 :: rest -> mergeRanges (s1 :: newRanges) rest
+        | [] -> newRanges |> List.sortBy fst
+
+    let (y, ranges) =
+      seq { 0 .. Int32.MaxValue }
+      |> Seq.map (getRangesForRow >> (mergeRanges []))
+      |> Seq.indexed
+      |> Seq.find (fun (_, ranges) -> (List.length ranges) > 1)
+    ((ranges[0] |> snd) + 1, y)
+
 let loadData () =
     let text = System.IO.File.ReadAllLines("./input.txt")
     text |> Array.toList |> List.map parseSensor
@@ -56,4 +87,8 @@ let data = loadData ()
 findAtRow 2000000 data
 |> List.filter id
 |> List.length
-|> printfn "%A"
+|> printfn "Part 1: %d"
+
+let (x,y) = findPosition data
+(int64 x) * 4000000L + (int64 y)
+|> printfn "Part 2: %d"
