@@ -21,26 +21,6 @@ let loadData () =
     let text = System.IO.File.ReadAllLines("./input.txt")
     text |> Array.toList |> List.map parseValue
 
-// let rec inserts x l =
-//     seq {
-//         match l with
-//         | [] -> yield [ x ]
-//         | y :: rest ->
-//             yield x :: l
-
-//             for i in inserts x rest do
-//                 yield y :: i
-//     }
-
-// let rec permutations l =
-//     seq {
-//         match l with
-//         | [] -> yield []
-//         | x :: rest ->
-//             for p in permutations rest do
-//                 yield! inserts x p
-//     }
-
 let getForName nodes nodeName =
     nodes
     |> List.find (function
@@ -48,7 +28,6 @@ let getForName nodes nodeName =
 
 let findShortestPath nodes (start, target) =
     let startNode = getForName nodes start
-
 
     let queue = PriorityQueue<Node, int>()
     queue.Enqueue(startNode, 0)
@@ -126,7 +105,9 @@ let allPaths =
 type FlowState = { Time: int; Released: int; Flow: int }
 
 module FlowState =
-    let initial = { Time = 30; Released = 0; Flow = 0 }
+    let initialP1 = { Time = 30; Released = 0; Flow = 0 }
+
+    let initialP2 = { Time = 26; Released = 0; Flow = 0 }
 
     let tick state =
         { state with
@@ -145,7 +126,7 @@ module FlowState =
         =
         released + (time * flow)
 
-let getReleasedPressure nodes =
+let getReleasedPressure nodes initial =
     let nodesByName =
         nodes
         |> List.map (fun node -> Node.getName node, node)
@@ -181,19 +162,19 @@ let getReleasedPressure nodes =
 
         potentials |> List.sum
 
-    let rec getBestReleasedPressure currentBest state remaining current =
+    let rec getBestReleasedPressure path currentBest state remaining current =
         let remaining = orderedByPotential state remaining current
 
         match (remaining, state) with
-        | (_, { Time = time }) when time = 0 -> FlowState.released state |> Some
-        | ([], _) -> getBestReleasedPressure currentBest (FlowState.tick state) [] current
+        | (_, { Time = time }) when time = 0 -> Some(FlowState.released state, path)
+        | ([], _) -> getBestReleasedPressure path currentBest (FlowState.tick state) [] current
         | next :: rest, _ ->
             let getForNextNode currentBest next rest =
                 let node = nodesByName[next]
                 let _, dist = allPaths[(current, next)]
 
                 if dist + 1 > state.Time then
-                    FlowState.released state |> Some
+                    Some(FlowState.releasedAfterTime state, path)
                 else
                     let newState =
                         seq { 0..dist } // Includes the time to open the valve
@@ -204,10 +185,10 @@ let getReleasedPressure nodes =
 
                     if (FlowState.releasedAfterTime newState)
                        + maxRemainPotential < currentBest then
-                        // printfn "Returning none (< %d)" currentBest
                         None
                     else
-                        getBestReleasedPressure currentBest newState rest next
+                        getBestReleasedPressure (current :: path) currentBest newState rest next
+
 
             let rec getForChildren currentBest beenDone toCheck toDo =
                 let result =
@@ -216,52 +197,50 @@ let getReleasedPressure nodes =
                 let newDone, newBest =
                     match result with
                     | None -> beenDone, currentBest
-                    | Some released -> (released :: beenDone), (max currentBest released)
+                    | Some released -> (released :: beenDone), (max currentBest (fst released))
 
                 match toDo with
                 | [] -> newDone
                 | next :: rest -> getForChildren newBest newDone next rest
-            // let children =
-            //     remaining
-            //     |> List.map (fun next -> getForNextNode next (List.filter (fun n -> n <> next) remaining))
-            //     |> List.filter Option.isSome
-            //     |> List.map Option.get
 
             match getForChildren currentBest [] next rest with
             | [] -> None
-            | children -> children |> List.max |> Some
+            | children ->
+                let maxChild = children |> List.maxBy fst
+                Some(maxChild)
 
-    getBestReleasedPressure 0 FlowState.initial nodeNames "AA"
+    getBestReleasedPressure [] 0 initial nodeNames "AA"
 
-
-// let getReleasedPressure nodes order =
-//     let rec openValve order time flow released current =
-//         if time <= 0 then
-//             released
-//         else
-//             let (Node (_, flowRate, _)) = getForName nodes current
-//             chooseNext order (time - 1) (flow + flowRate) (released + flow) current
-
-//     and chooseNext order time flow released current =
-//         match order with
-//         | next :: rest ->
-//             let path = findShortestPath current next nodes
-//             goTo rest time flow released current path
-//         | [] -> released + (time * flow)
-
-//     and goTo order time flow released current path =
-//         if time <= 0 then
-//             released
-//         else
-//             match path with
-//             | [] -> openValve order time flow (released) current
-//             | next :: rest -> goTo order (time - 1) flow (released + flow) next rest
-
-//     chooseNext order 30 0 0 "AA"
-
-
-getReleasedPressure positiveNodes
-// // |> List.max
-// |> List.length
+getReleasedPressure positiveNodes FlowState.initialP1
 |> Option.get
-|> printfn "Part 1: %d"
+|> fst
+|> printfn "Part 1: %A"
+
+let rec splitIntoTwo nodes =
+    match nodes with
+    | next :: rest ->
+        let children = splitIntoTwo rest
+
+        children
+        |> List.collect (fun (l1, l2) -> [ next :: l1, l2; l1, next :: l2 ])
+    | [] -> [ ([], []) ]
+
+let mutable i = 1
+
+let runForPartitions (scores, released) (l1, l2) =
+    if i % 1000 = 0 then printfn "%d" i
+    i <- i + 1
+
+    if Map.containsKey l2 scores then
+        (scores, released)
+    else
+        match getReleasedPressure l1 FlowState.initialP2, getReleasedPressure l2 FlowState.initialP2 with
+        | Some a, Some b -> (scores |> Map.add l1 (a, b), (a, b) :: released)
+        | _ -> (scores, released)
+
+splitIntoTwo positiveNodes
+|> List.fold runForPartitions (Map.empty, [])
+|> snd
+|> List.maxBy (fun ((a, _), (b, _)) -> a + b)
+|> (fun ((a, _), (b, _)) -> a + b)
+|> printfn "Part 2: %d"
