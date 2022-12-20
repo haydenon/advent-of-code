@@ -1,4 +1,6 @@
 ﻿open System
+open System.Collections.Generic
+open System.Threading.Tasks
 
 type Resource =
     | Ore
@@ -7,43 +9,48 @@ type Resource =
     | Geode
 
 let parseResources (resources: string) =
-    let resources = resources.Substring(0, resources.Length - 1)
-
     let parseResName =
         function
         | "ore" -> Ore
         | "clay" -> Clay
         | "obsidian" -> Obsidian
-        | _ -> failwith "Invali input"
+        | _ -> failwith "Invalid input"
 
     let parseResource (resource: string) =
-        match resource.Split(" ") with
+        match
+            resource.Split(" ")
+            |> Array.filter (String.IsNullOrWhiteSpace >> not)
+            with
         | [| num; res |] -> (parseResName res, num |> Int32.Parse)
-        | _ -> failwith "Invalid input"
+        | vals -> failwithf "Invalid input %A" vals
 
     resources.Split(" and ")
     |> Array.map parseResource
     |> Array.toList
 
-let parseBlueprint (lines: string []) =
+let parseBlueprint (line: string) =
+    let lines =
+        line.Substring("Blueprint 1: ".Length).Split(".")
+        |> Array.map (fun str -> str.Trim())
+
     let oreRobot =
-        lines[1]
-            .Substring("  Each ore robot costs ".Length)
+        lines[0]
+            .Substring("Each ore robot costs ".Length)
         |> parseResources
 
     let clayRobot =
-        lines[2]
-            .Substring("  Each clay robot costs ".Length)
+        lines[1]
+            .Substring("Each clay robot costs ".Length)
         |> parseResources
 
     let obsRobot =
-        lines[3]
-            .Substring("  Each obsidian robot costs ".Length)
+        lines[2]
+            .Substring("Each obsidian robot costs ".Length)
         |> parseResources
 
     let geodeRobot =
-        lines[4]
-            .Substring("  Each geode robot costs ".Length)
+        lines[3]
+            .Substring("Each geode robot costs ".Length)
         |> parseResources
 
     (oreRobot, clayRobot, obsRobot, geodeRobot)
@@ -111,6 +118,16 @@ module State =
             Obsidian = state.Obsidian + state.ObsidianRobots
             Geode = state.Geode + state.GeodeRobots }
 
+    let key state =
+        [| state.Ore
+           state.OreRobots
+           state.Clay
+           state.ClayRobots
+           state.Obsidian
+           state.ObsidianRobots
+           state.Geode
+           state.GeodeRobots |]
+
 
 type BlueprintItem = Resource * (Resource * int) list
 
@@ -146,13 +163,23 @@ let rec getOptions (costs: (Resource * (Resource * int) list) list) state =
         else
             options
 
-    let shouldBuy (res, _) =
-        let max = 6
 
+
+    let maxRequired =
+        [ Ore; Clay; Obsidian ]
+        |> List.map (fun res ->
+            costs
+            |> List.collect (fun (_, depdendent) ->
+                depdendent
+                |> List.filter (fst >> ((=) res))
+                |> List.map snd))
+        |> List.map (List.max)
+
+    let shouldBuy (res, _) =
         match res with
-        | Ore -> state.OreRobots < max
-        | Clay -> state.ClayRobots < max
-        | Obsidian -> state.ObsidianRobots < max
+        | Ore -> state.OreRobots < maxRequired[0]
+        | Clay -> state.ClayRobots < maxRequired[1]
+        | Obsidian -> state.ObsidianRobots < maxRequired[2]
         | Geode -> true
 
 
@@ -165,8 +192,14 @@ let rec getOptions (costs: (Resource * (Resource * int) list) list) state =
 
         List.append newOptions (canBuy |> List.map (fst >> Some))
 
-let getMaxGeodeCount costs state =
+let getMaxGeodeCount (maxForTimeAndObs: Map<int * int, int>) costs state =
     let geodeCost = costs |> List.find (fun (res, _) -> res = Geode)
+
+    // let obsCost =
+    //     geodeCost
+    //     |> snd
+    //     |> List.find (fun (res, _) -> res = Obsidian)
+    //     |> snd
 
     let remaining =
         if State.canBuy state geodeCost then
@@ -175,21 +208,63 @@ let getMaxGeodeCount costs state =
             state.Time - 2
 
     let maxFromBuilding =
-        seq { 0..remaining }
-        |> Seq.rev
-        |> Seq.fold (fun built ind -> built + ind) 0
+        // if
+        //     maxForTimeAndObs
+        //     |> Map.containsKey (state.Obsidian, state.Time)
+        // then
+        //     maxForTimeAndObs[(state.Obsidian, state.Time)]
+        // else
+            seq { 0 .. remaining }
+            |> Seq.rev
+            |> Seq.fold (fun built ind -> built + ind) 0
+
+    // let obsCost = geodeCost |> snd |> List.find (fun (res, _) -> res = Obsidian) |> snd
+
+    // // let remaining =
+    // //     if State.canBuy state geodeCost then
+    // //         state.Time - 1
+    // //     else
+    // //         state.Time - 2
+    // let ratesWithTime =
+    //   if state.ObsidianRobots > obsCost then
+    //     [(1.0, state.Time)]
+    //   else
+    //     seq { 0..(state.Time - 1) }
+    //     |> Seq.map (fun time -> (min (double (state.ObsidianRobots + time) / double obsCost) 1.0, state.Time - time))
+    //     |> Seq.toList
+
+    // let getRemainingForTime (rate : double, time) =
+    //     seq { 0..time }
+    //     |> Seq.rev
+    //     |> Seq.fold (fun built ind -> built + double ind * rate) 0.0
+    //     |> ceil
+    //     |> int
+    // let maxFromBuilding =
+    //   ratesWithTime |> List.map getRemainingForTime |> List.max
+    // let maxFromBuilding =
+    //     seq { 0..remaining }
+    //     |> Seq.rev
+    //     |> Seq.fold (fun built ind -> built + ind) 0
 
     state.Geode
     + state.GeodeRobots * state.Time
     + maxFromBuilding
 
-
-let rec getOptimalForBlueprint highestGeodeState (costs: (Resource * ((Resource * int) list)) list) state =
+let rec getOptimalForBlueprint
+    (maxForTimeAndObs: Map<int * int, int>)
+    highestGeodeState
+    (costs: (Resource * ((Resource * int) list)) list)
+    state
+    =
+    // let stateKey = State.key state
     if state.Time = 0 then
         state
-    elif highestGeodeState.Geode > getMaxGeodeCount costs state then
-        // printfn "%A" (getMaxGeodeCount costs state)
-        highestGeodeState
+    // elif bestForState.ContainsKey stateKey && bestForState[stateKey] |> fst > state.Time then
+    //   printfn "Using cache"
+    //   bestForState[stateKey] |> snd
+    // elif highestGeodeState.Geode > getMaxGeodeCount maxForTimeAndObs costs state then
+    //     // printfn "%A" (getMaxGeodeCount costs state)
+    //     highestGeodeState
     else
         let opts = getOptions costs state
 
@@ -206,7 +281,7 @@ let rec getOptimalForBlueprint highestGeodeState (costs: (Resource * ((Resource 
 
             let newState = { newState with Previous = Some state }
 
-            getOptimalForBlueprint highestCount costs newState
+            getOptimalForBlueprint maxForTimeAndObs highestCount costs newState
 
         let rec getForChildren highestState todo =
             match todo with
@@ -224,29 +299,72 @@ let rec getOptimalForBlueprint highestGeodeState (costs: (Resource * ((Resource 
 
                 getForChildren highestState rest
 
-        getForChildren highestGeodeState opts
+        let res = getForChildren highestGeodeState opts
+        // if not(bestForState.ContainsKey stateKey) || bestForState[stateKey] |> fst < state.Time then
+        //   bestForState[stateKey] <- (state.Time, res)
+        res
+
+let generateMaxForTimeAndObs costs : Map<int * int, int> =
+    let geodeCost = costs |> List.find (fun (res, _) -> res = Geode)
+
+    let obsCost =
+        geodeCost
+        |> snd
+        |> List.find (fun (res, _) -> res = Obsidian)
+        |> snd
+
+    let stateForTime obsRobots time =
+        { Time = time
+          OreRobots = 0
+          Ore = Int32.MaxValue
+          ClayRobots = 0
+          Clay = Int32.MaxValue
+          Obsidian = obsCost
+          ObsidianRobots = obsRobots
+          Geode = 0
+          GeodeRobots = 0
+          Previous = None }
+
+    Seq.allPairs (seq { 0..15 }) (seq { 1..16 })
+    |> Seq.fold
+        (fun map (obs, time) ->
+            let maxState =
+                stateForTime obs time
+                |> getOptimalForBlueprint Map.empty (State.initialForTime time) costs
+
+            map |> Map.add (obs, time) maxState.Geode)
+        Map.empty
 
 let loadData () =
     let text = System.IO.File.ReadAllLines("./input.txt")
 
-    let (ore, clay, obs, geod) =
-        seq { 0 .. ((Array.length text) / 6) }
-        |> Seq.map (fun i ->
-            text
-            |> Array.skip (i * 6)
-            |> Array.take 5
-            |> parseBlueprint)
-        |> Seq.skip 1
-        |> Seq.head
+    let parseCosts (line: string) =
+        let (ore, clay, obs, geod) = parseBlueprint line
 
-    [ (Ore, ore)
-      (Clay, clay)
-      (Obsidian, obs)
-      (Geode, geod) ]
+        [ (Ore, ore)
+          (Clay, clay)
+          (Obsidian, obs)
+          (Geode, geod) ]
+
+    text |> Array.map parseCosts
+
+
 
 let costs = loadData ()
 
 let state = State.initialForTime 24
 
-getOptimalForBlueprint state costs state
-|> printfn "%A"
+
+let res =
+    costs
+    |> Array.mapi (fun idx costs ->
+        // let map = generateMaxForTimeAndObs costs
+        let res = getOptimalForBlueprint Map.empty state costs state
+        printfn "Done %d" idx
+        res)
+
+res
+|> Array.indexed
+|> Array.map (fun (i, state) -> (i + 1) * state.Geode)
+|> Array.sum
+|> printfn "%d"
