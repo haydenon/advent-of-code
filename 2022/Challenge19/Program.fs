@@ -57,7 +57,8 @@ type State =
       ObsidianRobots: int
       Obsidian: int
       GeodeRobots: int
-      Geode: int }
+      Geode: int
+      Previous: State option }
 
 module State =
     let initialForTime time =
@@ -68,10 +69,11 @@ module State =
           Clay = 0
           ObsidianRobots = 0
           Obsidian = 0
-          GeodeRobots = 1
-          Geode = 0 }
+          GeodeRobots = 0
+          Geode = 0
+          Previous = None }
 
-    let canBuy state (_, costs) =
+    let canBuy state (res, costs) =
         let satisfiesResource =
             function
             | (Ore, num) -> state.Ore >= num
@@ -96,8 +98,8 @@ module State =
             match res with
             | Ore -> { state with OreRobots = state.OreRobots + 1 }
             | Clay -> { state with ClayRobots = state.ClayRobots + 1 }
-            | Obsidian -> { state with Obsidian = state.Obsidian + 1 }
-            | Geode -> { state with GeodeRobots = state.Geode + 1 }
+            | Obsidian -> { state with ObsidianRobots = state.ObsidianRobots + 1 }
+            | Geode -> { state with GeodeRobots = state.GeodeRobots + 1 }
 
         withRobot |> chargeForCost (res, costs)
 
@@ -118,66 +120,111 @@ type Actions =
     | Buy of Resource list
 
 
-let rec getOptions costs toCheck options =
-    match toCheck with
-    | [] -> options
-    | (state, buying) :: rest ->
-        let canBuyForCosts = costs |> List.map (State.canBuy state >> not)
-        printfn "%A" canBuyForCosts
+let rec getOptions (costs: (Resource * (Resource * int) list) list) state =
+    let options = []
 
-        let newOptions =
-            if canBuyForCosts |> List.exists id then
-                (buying :: options)
-            else
-                options
+    let canGetRes =
+        function
+        | Ore -> state.OreRobots > 0
+        | Clay -> state.ClayRobots > 0
+        | Obsidian -> state.ObsidianRobots > 0
+        | _ -> failwith "Geode is not a resource"
 
-        if canBuyForCosts |> List.forall id then
-            getOptions costs rest newOptions
+    let potentialToBuy =
+        costs
+        |> List.filter (fun (_, costs) -> costs |> List.forall (fst >> canGetRes))
+
+    let canWaitToBuy =
+        potentialToBuy
+        |> List.exists (State.canBuy state >> not)
+
+    let cantBuyAny = costs |> List.forall (State.canBuy state >> not)
+
+    let newOptions =
+        if canWaitToBuy then
+            None :: options
         else
-            let canBuy = costs |> List.filter (State.canBuy state)
+            options
 
-            let newToCheck =
-                List.append
-                    (canBuy
-                     |> List.map (fun (res, costs) -> (state |> State.chargeForCost (res, costs), res :: buying)))
-                    rest
+    let shouldBuy (res, _) =
+        let max = 6
 
-            getOptions costs newToCheck newOptions
+        match res with
+        | Ore -> state.OreRobots < max
+        | Clay -> state.ClayRobots < max
+        | Obsidian -> state.ObsidianRobots < max
+        | Geode -> true
 
-let rec getOptimalForBlueprint (costs: (Resource * ((Resource * int) list)) list) state =
-    if state.Time = 0 then
-        Some state.Obsidian
+
+    if cantBuyAny then
+        newOptions
     else
-        let opts = getOptions costs [ (state, []) ] []
-        printfn "%A" opts
+        let canBuy =
+            costs
+            |> List.filter (fun cost -> State.canBuy state cost && shouldBuy cost)
+
+        List.append newOptions (canBuy |> List.map (fst >> Some))
+
+let getMaxGeodeCount costs state =
+    let geodeCost = costs |> List.find (fun (res, _) -> res = Geode)
+
+    let remaining =
+        if State.canBuy state geodeCost then
+            state.Time - 1
+        else
+            state.Time - 2
+
+    let maxFromBuilding =
+        seq { 0..remaining }
+        |> Seq.rev
+        |> Seq.fold (fun built ind -> built + ind) 0
+
+    state.Geode
+    + state.GeodeRobots * state.Time
+    + maxFromBuilding
+
+
+let rec getOptimalForBlueprint highestGeodeState (costs: (Resource * ((Resource * int) list)) list) state =
+    if state.Time = 0 then
+        state
+    elif highestGeodeState.Geode > getMaxGeodeCount costs state then
+        // printfn "%A" (getMaxGeodeCount costs state)
+        highestGeodeState
+    else
+        let opts = getOptions costs state
 
         let costsForRes resource =
             costs
             |> List.filter (fun (res, _) -> res = resource)
             |> List.head
 
-        let getForNextOption (toBuy: Resource list) =
+        let getForNextOption highestCount (toBuy: Resource list) =
             let newState =
                 toBuy
                 |> List.map costsForRes
                 |> List.fold State.purchase (state |> State.tick)
 
-            getOptimalForBlueprint costs newState
+            let newState = { newState with Previous = Some state }
 
-        let rec getForChildren beenDone todo =
+            getOptimalForBlueprint highestCount costs newState
+
+        let rec getForChildren highestState todo =
             match todo with
-            | [] -> beenDone
-            | opt :: rest -> getForChildren ((getForNextOption opt) :: beenDone) rest
+            | [] -> highestState
+            | opt :: rest ->
+                let opts =
+                    match opt with
+                    | Some opt -> [ opt ]
+                    | None -> []
 
-        let children =
-            getForChildren [] opts
-            |> List.filter Option.isSome
-            |> List.map Option.get
+                let highestState =
+                    match getForNextOption highestState opts with
+                    | childState when childState.Geode > highestState.Geode -> childState
+                    | _ -> highestState
 
-        match children with
-        | [] -> None
-        | values -> values |> List.max |> Some
+                getForChildren highestState rest
 
+        getForChildren highestGeodeState opts
 
 let loadData () =
     let text = System.IO.File.ReadAllLines("./input.txt")
@@ -189,6 +236,7 @@ let loadData () =
             |> Array.skip (i * 6)
             |> Array.take 5
             |> parseBlueprint)
+        |> Seq.skip 1
         |> Seq.head
 
     [ (Ore, ore)
@@ -198,14 +246,7 @@ let loadData () =
 
 let costs = loadData ()
 
-let state = State.initialForTime 10
+let state = State.initialForTime 24
 
-let st =
-    { state with
-        Time = 2
-        Ore = 8
-        Clay = 20
-        Obsidian = 7 }
-
-getOptimalForBlueprint costs st |> printfn "%A"
-// data |> printfn "%A"
+getOptimalForBlueprint state costs state
+|> printfn "%A"
