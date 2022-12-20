@@ -208,43 +208,15 @@ let getMaxGeodeCount (maxForTimeAndObs: Map<int * int, int>) costs state =
             state.Time - 2
 
     let maxFromBuilding =
-        // if
-        //     maxForTimeAndObs
-        //     |> Map.containsKey (state.Obsidian, state.Time)
-        // then
-        //     maxForTimeAndObs[(state.Obsidian, state.Time)]
-        // else
-            seq { 0 .. remaining }
-            |> Seq.rev
-            |> Seq.fold (fun built ind -> built + ind) 0
-
-    // let obsCost = geodeCost |> snd |> List.find (fun (res, _) -> res = Obsidian) |> snd
-
-    // // let remaining =
-    // //     if State.canBuy state geodeCost then
-    // //         state.Time - 1
-    // //     else
-    // //         state.Time - 2
-    // let ratesWithTime =
-    //   if state.ObsidianRobots > obsCost then
-    //     [(1.0, state.Time)]
-    //   else
-    //     seq { 0..(state.Time - 1) }
-    //     |> Seq.map (fun time -> (min (double (state.ObsidianRobots + time) / double obsCost) 1.0, state.Time - time))
-    //     |> Seq.toList
-
-    // let getRemainingForTime (rate : double, time) =
-    //     seq { 0..time }
-    //     |> Seq.rev
-    //     |> Seq.fold (fun built ind -> built + double ind * rate) 0.0
-    //     |> ceil
-    //     |> int
-    // let maxFromBuilding =
-    //   ratesWithTime |> List.map getRemainingForTime |> List.max
-    // let maxFromBuilding =
-    //     seq { 0..remaining }
-    //     |> Seq.rev
-    //     |> Seq.fold (fun built ind -> built + ind) 0
+        if
+            maxForTimeAndObs
+            |> Map.containsKey (state.Obsidian, state.Time)
+        then
+            maxForTimeAndObs[(state.Obsidian, state.Time)]
+        else
+        seq { 0..remaining }
+        |> Seq.rev
+        |> Seq.fold (fun built ind -> built + ind) 0
 
     state.Geode
     + state.GeodeRobots * state.Time
@@ -256,15 +228,10 @@ let rec getOptimalForBlueprint
     (costs: (Resource * ((Resource * int) list)) list)
     state
     =
-    // let stateKey = State.key state
     if state.Time = 0 then
         state
-    // elif bestForState.ContainsKey stateKey && bestForState[stateKey] |> fst > state.Time then
-    //   printfn "Using cache"
-    //   bestForState[stateKey] |> snd
-    // elif highestGeodeState.Geode > getMaxGeodeCount maxForTimeAndObs costs state then
-    //     // printfn "%A" (getMaxGeodeCount costs state)
-    //     highestGeodeState
+    elif highestGeodeState.Geode > getMaxGeodeCount maxForTimeAndObs costs state then
+        highestGeodeState
     else
         let opts = getOptions costs state
 
@@ -325,7 +292,7 @@ let generateMaxForTimeAndObs costs : Map<int * int, int> =
           GeodeRobots = 0
           Previous = None }
 
-    Seq.allPairs (seq { 0..15 }) (seq { 1..16 })
+    Seq.allPairs (seq { 0..20 }) (seq { 1..20 })
     |> Seq.fold
         (fun map (obs, time) ->
             let maxState =
@@ -367,4 +334,22 @@ res
 |> Array.indexed
 |> Array.map (fun (i, state) -> (i + 1) * state.Geode)
 |> Array.sum
-|> printfn "%d"
+|> printfn "Part 1: %d"
+
+
+let state2 = State.initialForTime 32
+
+let res2 =
+    costs
+    |> Array.take 3
+    |> Array.mapi (fun idx costs ->
+        let map = generateMaxForTimeAndObs costs
+        printfn "Starting %d" idx
+        let res = getOptimalForBlueprint map state2 costs state2
+        printfn "Done %d" idx
+        res)
+
+res2
+|> Array.map (fun state -> state.Geode)
+|> Array.fold (*) 1
+|> printfn "Part 2: %d"
