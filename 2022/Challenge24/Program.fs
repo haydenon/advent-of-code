@@ -45,7 +45,7 @@ let parseBlizzards (lines: string list) =
 type Blizzards = (bool [] [] * bool [] [] * bool [] [] * bool [] [])
 
 let hasBlizzardAtStep (width, height) ((north, south, east, west): Blizzards) step (x, y) =
-    if y < 0 then
+    if y < 0 || y >= height then
         false
     else
         [ ((x + step) % width, y), west
@@ -73,14 +73,15 @@ let getAdjacent (width, height) (x, y) =
     |> List.map (fun (dx, dy) -> (x + dx), (y + dy))
     |> List.filter (fun (x, y) ->
         (x = 0 && y = -1)
+        || (x = width - 1 && y = height)
         || (x >= 0 && y >= 0 && x < width && y < height))
 
-let findShortestPath (blizzards: Blizzards) (targetX, targetY) =
+let findShortestPath startStep (blizzards: Blizzards) (startX, startY) (targetX, targetY) =
     let blizzardArr = blizzards |> (fun (first, _, _, _) -> first)
     let size = blizzardArr[0] |> Array.length, blizzardArr |> Array.length
     let (width, height) = size
     let duration = width * height
-    let startNode = ((0, -1), 0, [])
+    let startNode = ((startX, startY), startStep, [])
 
     let queue = PriorityQueue<ActionNode, int>()
     queue.Enqueue(startNode, 0)
@@ -130,17 +131,22 @@ let size, data = loadData ()
 let tx, ty = size
 let target = (tx - 1, ty - 1)
 
-// let createEmpty () = [| Array.init 4 (fun _ -> false) |]
+let part1 =
+    findShortestPath 0 data (0, -1) target
+    |> List.length
+    |> ((+) 1)
 
-// let blizzards =
-//     (createEmpty (), createEmpty (), [| [| true; false; false; false |] |], createEmpty ())
 
-// seq { 0..10 }
-// |> Seq.iter (fun i ->
-//     hasBlizzardAtStep (4, 1) blizzards i (0, 0)
-//     |> printfn "%b")
+part1 |> printfn "Part 1: %d"
 
-findShortestPath data target
-|> List.length
-|> ((+) 1)
-|> printfn "%d"
+let goingBack =
+    findShortestPath part1 data (tx - 1, ty) (0, 0)
+    |> List.length
+    |> ((+) 1)
+
+let andBackAgain =
+    findShortestPath (part1 + goingBack) data (0, -1) (tx - 1, ty - 1)
+    |> List.length
+    |> ((+) 1)
+
+printfn "Part 2: %d" (andBackAgain + goingBack + part1)
