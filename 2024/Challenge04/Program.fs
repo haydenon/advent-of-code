@@ -17,7 +17,6 @@ let countInGrid increments chars (grid: char [] []) =
     let rec checkPos increment chars index (x, y) =
         match chars with
         | char :: rest ->
-            // printfn "%d %d = %c %c %b %b" x y char (grid[y][x]) (inBounds x y) (grid[y][x] = char)
             if (inBounds x y) && grid[y][x] = char then
                 checkPos increment rest (index + 1) (increment index (x, y))
             else
