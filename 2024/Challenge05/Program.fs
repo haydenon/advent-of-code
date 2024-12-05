@@ -1,6 +1,5 @@
 ﻿open System
 open System.Linq
-open System.Text.RegularExpressions
 
 let loadData () =
     let text = System.IO.File.ReadAllLines("./input.txt")
@@ -45,7 +44,7 @@ let getOrdering (orderRules: (int * int) list) : int list =
         |> Map.ofSeq
 
     let rec getNext ordering (ordered: Set<int>) remaining =
-        let rec getHead item (check: Set<int>) =
+        let rec getHead () =
             childToParents
             |> Map.toList
             |> List.find (fun (c, p) ->
@@ -53,23 +52,11 @@ let getOrdering (orderRules: (int * int) list) : int list =
                 && p
                    |> List.forall (fun i -> ordered |> Set.contains i))
             |> fst
-        // match childToParents |> Map.tryFind item with
-        // | Some list ->
-        //     let parent =
-        //         list
-        //         |> List.tryFind (fun p ->
-        //             not (ordered |> Set.contains p)
-        //             && not (check |> Set.contains p))
-
-        //     match parent with
-        //     | Some p -> getHead p (check |> Set.add p)
-        //     | None -> item
-        // | _ -> item
 
         match remaining with
         | [] -> ordering |> List.rev
         | next :: _ ->
-            let head = getHead next Set.empty
+            let head = getHead ()
             let remaining = remaining |> List.except [ head ]
             let ordered = ordered |> Set.add head
             let ordering = head :: ordering
@@ -116,4 +103,14 @@ let getMiddle list =
 alreadyOrdered
 |> List.map getMiddle
 |> List.sum
-|> printfn "%d"
+|> printfn "Part 1: %d"
+
+let outOfOrder =
+    updatedInOrder
+    |> Array.toList
+    |> List.except alreadyOrdered
+
+outOfOrder
+|> List.map getMiddle
+|> List.sum
+|> printfn "Part 2: %d"
