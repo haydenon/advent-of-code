@@ -49,15 +49,40 @@ let rec findLocations dims blocks locations coords orientation =
     let (nx, ny) = nextCoords orientation coords
 
     if outOfBounds dims nx ny then
-        locations
+        locations, true
+
+
     else if blocks |> Set.contains (nx, ny) then
-        findLocations dims blocks locations coords (nextOrientation orientation)
+        let nextOrient = (nextOrientation orientation)
+
+        if locations |> Set.contains (coords, nextOrient) then
+            locations, false
+        else
+            findLocations dims blocks (locations |> Set.add (coords, nextOrient)) coords nextOrient
+    else if locations |> Set.contains ((nx, ny), orientation) then
+        locations, false
     else
-        findLocations dims blocks (locations |> Set.add (nx, ny)) (nx, ny) orientation
+        findLocations dims blocks (locations |> Set.add ((nx, ny), orientation)) (nx, ny) orientation
 
 
 let (dims, start, blocks) = loadData ()
 
-findLocations dims blocks (Set.empty |> Set.add start) start North
+let firstLocations =
+    findLocations dims blocks (Set.empty |> Set.add (start, North)) start North
+    |> fst
+    |> Set.map fst
+
+firstLocations
 |> Set.count
-|> printfn "%A"
+|> printfn "Part 1: %d"
+
+firstLocations
+|> Set.remove start
+|> Set.toList
+|> List.filter (
+    (fun block -> findLocations dims (blocks |> Set.add block) (Set.empty |> Set.add (start, North)) start North)
+    >> snd
+    >> not
+)
+|> List.length
+|> printfn "Part 2: %d"
