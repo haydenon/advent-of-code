@@ -1,7 +1,4 @@
-﻿open System
-open System.Linq
-
-let loadData () =
+﻿let loadData () =
     let text = System.IO.File.ReadAllLines("./input.txt")
     let width = text[0].Length
     let height = text.Length
@@ -27,15 +24,6 @@ let loadData () =
 
 let (dims, antennae) = loadData ()
 
-//   1 2 3 4
-// 1 x
-
-// 2   a b
-
-// 3   b a
-
-// 4       x
-
 let findAntennae part1Rules dims antennae =
     let width, height = dims
 
@@ -54,6 +42,7 @@ let findAntennae part1Rules dims antennae =
                 if part1Rules then
                     let anx = x1 - dx
                     let any = y1 - dy
+
                     if inBounds (anx, any) then
                         [ (anx, any) ]
                     else
