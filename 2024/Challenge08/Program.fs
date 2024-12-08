@@ -36,30 +36,52 @@ let (dims, antennae) = loadData ()
 
 // 4       x
 
-let findAntennae dims antennae =
-    let width,height = dims
-    let inBounds x y =
-      x >= 0 && x < width && y >= 0 && y < height
+let findAntennae part1Rules dims antennae =
+    let width, height = dims
+
+    let inBounds (x, y) =
+        x >= 0 && x < width && y >= 0 && y < height
+
     let getNodes (_, coords) =
         let getAntinode (coord1, coord2) =
             if coord1 = coord2 then
-                None
+                []
             else
                 let (x1, y1), (x2, y2) = coord1, coord2
-                let anx = x1 - (x2 - x1)
-                let any = y1 - (y2 - y1)
-                if inBounds anx any then
-                  Some(anx, any)
+                let dx = (x2 - x1)
+                let dy = (y2 - y1)
+
+                if part1Rules then
+                    let anx = x1 - dx
+                    let any = y1 - dy
+                    if inBounds (anx, any) then
+                        [ (anx, any) ]
+                    else
+                        []
                 else
-                  None
+                    let rec getCoords dx dy (x, y) list =
+                        let next = x - dx, y - dy
+
+                        if not (inBounds next) then
+                            list
+                        else
+                            getCoords dx dy next (next :: list)
+
+                    getCoords dx dy (x2, y2) []
 
         coords
         |> List.allPairs coords
-        |> List.choose getAntinode
+        |> List.collect getAntinode
 
     antennae
     |> Map.toList
     |> List.collect getNodes
     |> Set.ofList
 
-findAntennae dims antennae |> Set.count |> printfn "Part 1: %d"
+findAntennae true dims antennae
+|> Set.count
+|> printfn "Part 1: %d"
+
+findAntennae false dims antennae
+|> Set.count
+|> printfn "Part 2: %d"
