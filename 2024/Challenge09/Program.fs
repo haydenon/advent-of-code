@@ -78,15 +78,10 @@ let moveFiles (array: int array) =
 
             let newNum = array[ind]
 
-            // if (moved |> Set.contains num) then
-            //   printfn "%d" num
             if num <> -1 && not (moved |> Set.contains num) then
                 match findNextSpot (ind + 1) count with
                 | Some spotInd ->
                     let (spotStart, spotCount) = list[spotInd]
-
-                    // if (moved |> Set.contains num) then
-                    //     printfn "%d %d %d" num spotStart spotCount
 
                     for i in 0 .. count - 1 do
                         array[spotStart + i] <- num
@@ -122,4 +117,4 @@ arr2
         0L
     else
         (int64 idx) * num)
-|> printfn "%d"
+|> printfn "Part 2: %d"
