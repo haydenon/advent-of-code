@@ -92,15 +92,10 @@ let runWithCaching list =
     let mutable i = 0
 
     roundTwo
-    |> List.map (fun list -> list.Count)
-    |> List.sum
-    |> printfn "%d"
-
-    roundTwo
     |> List.fold
         (fun (cache, count: int64) value ->
             i <- i + 1
-            if i % 10 = 0 then printfn "%d" i
+            if i % 10000 = 0 then printfn "%d" i
             let mutable curr = value
             let mutable cacheVal = cache
             let mutable currCount = count
