@@ -203,18 +203,24 @@ let countSides (perimeter: ((int * int) * (int * int)) list) =
             | East -> (x + 1, y + 1), South
             | West -> (x - 1, y - 1), North
 
+        let isOutsideCorner coords dir =
+           let cornerCOords =(getOutsideCornerDirChange coords dir |> fst)
+           insides |> Set.contains cornerCOords |> not && outsides |> Set.contains cornerCOords
+
         let getChange coords dir =
             let nextInDir = getNextInDirection coords dir
 
-            if outsides |> Set.contains nextInDir then
+            // Outside corner
+            if isOutsideCorner coords dir then
+                let nextCoords, nextDir = getOutsideCornerDirChange coords dir
+                nextCoords, nextDir, 1
+            else if outsides |> Set.contains nextInDir then
                 nextInDir, dir, 0
             // Inside corner
             else if insides |> Set.contains nextInDir then
                 coords, getInsideCornerDirChange dir, 1
-            // Outside corner
             else
-                let nextCoords, nextDir = getOutsideCornerDirChange coords dir
-                nextCoords, nextDir, 1
+              failwith "Blah"
 
         let rec count start sides coords dir visited =
             let newVisited = visited |> Set.add coords
@@ -252,7 +258,9 @@ let mutable i = 0
 result
 |> List.map (fun (per, area) ->
   i <- i + 1
-  printfn "%d" i
+  let coord = (per |> List.head |> snd)
+  let (x,y) = coord
+  printfn "%c %d %A" (data[y][x]) i  coord
   (per |> countSides) * area)
 // |> printfn "%A"
 |> List.sum
