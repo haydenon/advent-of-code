@@ -64,59 +64,181 @@ let count (grid: char array array) =
     |> snd
 
 
+// let countSides (perimeter: ((int * int) * (int * int)) list) =
+//     let unique = perimeter |> List.map fst |> Set.ofList
+
+//     let sideToAdjacent =
+//         perimeter
+//         |> List.fold
+//             (fun acc (edge, inner) ->
+//                 acc
+//                 |> Map.change edge (function
+//                     | None -> Some 1
+//                     | Some count -> Some(count + 1)))
+//             Map.empty
+
+//     let visited = Set.empty
+
+//     let rec count visited coords sides perimeter =
+//         let adj = getAdjacent coords |> Set.ofList
+//         let diagonal = getDiagonal coords |> Set.ofList
+//         let reachable = perimeter |> Set.intersect (diagonal + adj)
+
+//         if (reachable |> Set.isEmpty) then
+//             sides
+//         else
+//             let newVisited = (visited |> Set.add coords)
+
+//             let intersect = adj |> Set.intersect perimeter
+//             let adjacent = intersect - newVisited
+
+
+//             let onSameSide = adjacent |> Set.toList |> List.tryHead
+//             // adjacent |> Set.toListperimeter |> S
+//             // |> Set (fun other ->
+//             //     not (visited |> Set.contains other)
+//             //     && adjacent |> List.contains other)
+
+//             match onSameSide with
+//             | Some next -> count newVisited next sides (perimeter |> Set.remove coords)
+//             | None ->
+//                 let corners = perimeter |> Set.intersect diagonal
+//                 // |> Set.filter (fun other ->
+//                 //     not (newVisited |> Set.contains other)
+//                 //     && diagonal |> List.contains other)
+
+//                 corners
+//                 |> Set.map (fun next ->
+//                     count newVisited next (sides + (sideToAdjacent |> Map.find next)) (perimeter |> Set.remove coords))
+//                 |> Set.toList
+//                 |> List.max
+
+//     let first = perimeter |> List.head |> fst
+//     let res = count visited first 1 (unique |> Set.remove first)
+//     printfn "%d" res
+//     res
+
+type Direction =
+    | North
+    | East
+    | South
+    | West
+
 let countSides (perimeter: ((int * int) * (int * int)) list) =
-    let unique = perimeter |> List.map fst |> Set.ofList
-
-    let sideToAdjacent =
+    let getReachable ((x, y),(ix, iy)) =
+        //     if x = 1 && y = 1 && perimeter.Length = 36 then
+        //       let r = perimeter
+        //               |> List.filter (fun ((ox, oy), _) -> abs (ox - x) <= 1 && abs (oy - y) <= 1)
+        //       printfn "%A" r
         perimeter
-        |> List.fold
-            (fun acc (edge, inner) ->
-                acc
-                |> Map.change edge (function
-                    | None -> Some 1
-                    | Some count -> Some(count + 1)))
-            Map.empty
+        |> List.filter (fun ((ox, oy), (ix2, iy2)) -> (abs (ox - x)) <= 1 && (abs (oy - y)) <= 1 && ix2 = ix && iy2 = iy)
 
-    let visited = Set.empty
+    let rec findReachable queue (reachable: ((int * int) * (int * int)) list) visited =
+        match queue with
+        | [] -> reachable |> List.distinct, visited
+        | next :: rest ->
+            let nextInQueue =
+                getReachable next
+                |> List.filter (fun i -> visited |> Set.contains i |> not)
 
-    let rec count visited coords sides perimeter =
-        let adj = getAdjacent coords |> Set.ofList
-        let diagonal = getDiagonal coords |> Set.ofList
-        let reachable = perimeter |> Set.intersect (diagonal + adj)
+            findReachable (rest |> List.append nextInQueue) (next :: reachable) (visited |> Set.add next)
+    // getReachable (fst value)
+    // |> List.fold
+    //     (fun (reach, visit) newValue -> findReachable newValue locations reach visit)
+    //     (value :: reachable, visited |> Set.add (fst value))
 
-        if (reachable |> Set.isEmpty) then
-            sides
-        else
-            let newVisited = (visited |> Set.add coords)
+    // let perimeters =
+    //     perimeter
+    //     |> Set.ofList
+    //     |> Set.fold
+    //         (fun (perimeters, visited) location ->
+    //             if visited |> Set.contains location then
+    //                 (perimeters, visited)
+    //             else
+    //                 let (reachable, newVisited) = findReachable [ location ] [] Set.empty
+    //                 (reachable :: perimeters), visited + newVisited)
+    //         ([], Set.empty)
 
-            let intersect = adj |> Set.intersect perimeter
-            let adjacent = intersect - newVisited
+    // match remaining with
+    // | [] -> currentSet :: sets
+    // | _ ->
+    //   match getReachable value remaining with
+    //   | [] -> findReachable (remaining |> List.head |> fst) (remaining |> List.skip 1) [] (currentSet :: sets)
+    //   | next ::
+    let runForPerimeter (perimeter: ((int * int) * (int * int)) list) visited =
+        let start = perimeter |> List.head
+        let insides = perimeter |> List.map snd |> Set.ofList
+        let outsides = perimeter |> List.map fst |> Set.ofList
 
+        let ((ox, oy), (ix, iy)) = start
 
-            let onSameSide = adjacent |> Set.toList |> List.tryHead
-            // adjacent |> Set.toListperimeter |> S
-            // |> Set (fun other ->
-            //     not (visited |> Set.contains other)
-            //     && adjacent |> List.contains other)
+        let dir =
+            match ox - ix, oy - iy with
+            | -1, _ -> North
+            | 1, _ -> South
+            | _, -1 -> East
+            | _, 1 -> West
+            | _ -> failwith "Invalid"
 
-            match onSameSide with
-            | Some next -> count newVisited next sides (perimeter |> Set.remove coords)
-            | None ->
-                let corners = perimeter |> Set.intersect diagonal
-                // |> Set.filter (fun other ->
-                //     not (newVisited |> Set.contains other)
-                //     && diagonal |> List.contains other)
+        let getNextInDirection (x, y) dir =
+            match dir with
+            | North -> (x, y - 1)
+            | South -> (x, y + 1)
+            | East -> (x + 1, y)
+            | West -> (x - 1, y)
 
-                corners
-                |> Set.map (fun next ->
-                    count newVisited next (sides + (sideToAdjacent |> Map.find next)) (perimeter |> Set.remove coords))
-                |> Set.toList
-                |> List.max
+        let getInsideCornerDirChange dir =
+            // We're navigating clockwise, so an inside corner is always anti-clockwise turn
+            match dir with
+            | North -> West
+            | South -> East
+            | East -> North
+            | West -> South
 
-    let first = perimeter |> List.head |> fst
-    let res = count visited first 1 (unique |> Set.remove first)
-    printfn "%d" res
-    res
+        let getOutsideCornerDirChange (x, y) dir =
+            // We're navigating clockwise, so an outside corner is always clockwise and around corner turn
+            match dir with
+            | North -> (x + 1, y - 1), East
+            | South -> (x - 1, y + 1), West
+            | East -> (x + 1, y + 1), South
+            | West -> (x - 1, y - 1), North
+
+        let getChange coords dir =
+            let nextInDir = getNextInDirection coords dir
+
+            if outsides |> Set.contains nextInDir then
+                nextInDir, dir, 0
+            // Inside corner
+            else if insides |> Set.contains nextInDir then
+                coords, getInsideCornerDirChange dir, 1
+            // Outside corner
+            else
+                let nextCoords, nextDir = getOutsideCornerDirChange coords dir
+                nextCoords, nextDir, 1
+
+        let rec count start sides coords dir visited =
+            let newVisited = visited |> Set.add coords
+            if start = (dir, coords) && sides > 0 then
+                sides, newVisited
+            else
+                let newCoords, newDir, sideDelta = getChange coords dir
+                count start (sides + sideDelta) newCoords newDir newVisited
+
+        let startOutside = start |> fst
+        count (dir, startOutside) 0 startOutside dir Set.empty
+    let rec run perimeter visited =
+      let count, visited = runForPerimeter perimeter visited
+      let remaining = perimeter |> List.filter (fun (out, _) -> visited |>Set.contains out |> not)
+      if remaining |> List.isEmpty then
+        count
+      else
+        count + run remaining visited
+
+    // let a = runForPerimeter perimeter Set.empty
+    // printfn "%d %d" (perimeter |> List.length) (snd a |> Set.count)
+    // a //|> List.sum
+    run perimeter Set.empty
+
 
 let result = data |> count
 
@@ -125,7 +247,13 @@ result
 |> List.sum
 |> printfn "Part 1: %d"
 
+let mutable i = 0
+
 result
-|> List.map (fun (per, area) -> (per |> countSides) * area)
+|> List.map (fun (per, area) ->
+  i <- i + 1
+  printfn "%d" i
+  (per |> countSides) * area)
+// |> printfn "%A"
 |> List.sum
-|> printfn "Part 1: %d"
+|> printfn "Part 2: %d"
