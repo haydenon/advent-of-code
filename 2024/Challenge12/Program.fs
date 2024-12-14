@@ -109,8 +109,10 @@ let countSides (perimeter: ((int * int) * (int * int)) list) =
             | West -> (x - 1, y - 1), North
 
         let isOutsideCorner coords dir =
-           let cornerCOords =(getOutsideCornerDirChange coords dir |> fst)
-           insides |> Set.contains cornerCOords |> not && outsides |> Set.contains cornerCOords
+            let cornerCoords = (getOutsideCornerDirChange coords dir |> fst)
+
+            insides |> Set.contains cornerCoords |> not
+            && outsides |> Set.contains cornerCoords
 
         let getChange coords dir =
             let nextInDir = getNextInDirection coords dir
@@ -125,10 +127,11 @@ let countSides (perimeter: ((int * int) * (int * int)) list) =
             else if insides |> Set.contains nextInDir then
                 coords, getInsideCornerDirChange dir, 1
             else
-              failwith "Invalid case"
+                failwith "Invalid case"
 
         let rec count start sides coords dir visited =
             let newVisited = visited |> Set.add coords
+
             if start = (dir, coords) && sides > 0 then
                 sides, newVisited
             else
@@ -137,13 +140,18 @@ let countSides (perimeter: ((int * int) * (int * int)) list) =
 
         let startOutside = start |> fst
         count (dir, startOutside) 0 startOutside dir Set.empty
+
     let rec run perimeter =
-      let count, visited = runForPerimeter perimeter
-      let remaining = perimeter |> List.filter (fun (out, _) -> visited |>Set.contains out |> not)
-      if remaining |> List.isEmpty then
-        count
-      else
-        count + run remaining
+        let count, visited = runForPerimeter perimeter
+
+        let remaining =
+            perimeter
+            |> List.filter (fun (out, _) -> visited |> Set.contains out |> not)
+
+        if remaining |> List.isEmpty then
+            count
+        else
+            count + run remaining
 
     run perimeter
 

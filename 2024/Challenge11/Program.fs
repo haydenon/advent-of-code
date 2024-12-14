@@ -1,4 +1,5 @@
 ﻿open System
+open System.Collections.Generic
 
 let loadData () =
     let text = System.IO.File.ReadAllLines("./input.txt")
@@ -7,120 +8,54 @@ let loadData () =
 
 let data = loadData ()
 
-[<AllowNullLiteral>]
-type ListNode(value: int64) =
-    member val Count = 0L with get, set
-    member val Value = value with get, set
-    member val Next: ListNode = null with get, set
-    member val Start: ListNode = null with get, set
-
-let toLinkedList values =
-    let start = ListNode(List.head values)
-    start.Start <- start
-    let mutable curr = start
-
-    for next in List.skip 1 values do
-        let nextNode = ListNode(next)
-        nextNode.Start <- start
-        curr.Next <- nextNode
-        curr <- nextNode
-
-    start.Count <- values |> List.length |> int64
-
-    start
-
-let rec toList values (list: ListNode) =
-    let newValues = list.Value :: values
-
-    if list.Next = null then
-        newValues |> List.rev
-    else
-        toList newValues list.Next
-
-
-let rec runRound times (list: ListNode) =
-    let next = list.Next
-    let value = list.Value
+let rec getNext value =
     let asStr = string value
 
     if value = 0L then
-        list.Value <- 1
+        [ 1L ]
     else if asStr.Length % 2 = 0 then
         let half = asStr.Length / 2
         let firstHalf = asStr.Substring(0, half)
         let secondHalf = asStr.Substring(half, half)
-        list.Value <- int64 firstHalf
-        let newVal = ListNode(int64 secondHalf)
-        newVal.Next <- list.Next
-        let start = list.Start
-        newVal.Start <- start
-        start.Count <- start.Count + 1L
-        list.Next <- newVal
+
+        [ int64 firstHalf; int64 secondHalf ]
     else
-        list.Value <- value * 2024L
+        [ value * 2024L ]
 
-    if next = null then
-        let newTimes = times - 1
+let rec runRounds (cache: Dictionary<int64 * int, int64>) times value =
+    let res = ref 0L
+    let key = (value, times)
+    let c = cache.TryGetValue(key, res)
 
-        if newTimes = 0 then
-            list.Start
-        else
-            runRound newTimes list.Start
-    else
-        runRound times next
+    match c with
+    | true -> res.Value
+    | _ ->
+        let next = getNext value
 
-let runWithCaching list =
-    let oneRound = runRound 25 list
-    // let cached = oneRound |>
-    let cacheValue (cache: Map<int64, (ListNode * int64)>) num =
-        match cache |> Map.tryFind num with
-        | Some _ -> cache
-        | None ->
-            let res = runRound 25 ([ num ] |> toLinkedList)
-            let value = (res, res |> toList [] |> List.length |> int64)
-            cache |> Map.add num value
+        let nextValue =
+            if (times <= 1) then
+                next |> List.length |> int64
+            else
+                next
+                |> List.map (fun v -> runRounds cache (times - 1) v)
+                |> List.sum
 
-    let getValue (cache: Map<int64, (ListNode * int64)>) num =
-        match cache |> Map.tryFind num with
-        | Some (list, _) -> list
-        | None -> runRound 25 ([ num ] |> toLinkedList)
+        cache.Add(key, nextValue)
+        nextValue
 
-    let roundOneList = oneRound |> toList []
-    let cache = roundOneList |> List.fold cacheValue Map.empty
-    let roundTwo = roundOneList |> List.map (getValue cache)
-
-    let mutable i = 0
-
-    roundTwo
-    |> List.fold
-        (fun (cache, count: int64) value ->
-            i <- i + 1
-            if i % 10000 = 0 then printfn "%d" i
-            let mutable curr = value
-            let mutable cacheVal = cache
-            let mutable currCount = count
-
-            while curr <> null do
-                cacheVal <- cacheValue cacheVal curr.Value
-
-                currCount <-
-                    currCount
-                    + (cacheVal |> Map.find curr.Value |> snd)
-
-                curr <- curr.Next
-
-            (cacheVal, currCount))
-        (cache, 0)
-        |> snd
+let cache = Dictionary()
 
 data
-|> toLinkedList
-|> runRound 25
-|> toList []
-|> List.length
+// |> toLinkedList
+// |> runRoundOld 25
+|> List.map (runRounds cache 25)
+// |> toList []
+|> List.sum
 |> printfn "Part 1: %d"
 
 data
-|> toLinkedList
-|> runWithCaching
+|> List.map (runRounds cache 75)
+|> List.sum
+// |> toLinkedList
+// |> runWithCaching
 |> printfn "Part 2: %d"
