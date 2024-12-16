@@ -39,7 +39,7 @@ let getTurns =
     | East -> [ North; South ]
     | West -> [ North; South ]
 
-type VisitedMap = Map<(int32 * int32) * Direction, (int32 * (((int32 * int32) * Direction) list))>
+type VisitedMap = Map<(int32 * int32) * Direction, (int32 * (((int32 * int32) * Direction) list list))>
 
 let getAdjacentAndCost (board: char array array) (visited: VisitedMap) (coords, dir) =
     ((getNext coords dir, dir), 1)
@@ -50,27 +50,46 @@ let getAdjacentAndCost (board: char array array) (visited: VisitedMap) (coords, 
         && board[y][x] <> '#')
 
 let rec findBestPath
+    exitEarly
     (getAdjacent: VisitedMap -> ((int32 * int32) * Direction) -> (((int32 * int32) * Direction) * int32) list)
     (queue: PriorityQueue<((int32 * int32) * Direction) * (int32 * (((int32 * int32) * Direction) list)), int32>)
     (visited: VisitedMap)
     =
     if queue.Count = 0 then
-        failwith "No route"
+        let pathsForDirs =
+            visited
+            |> Map.toList
+            |> List.filter (fun ((coord, _), _) -> coord = endPoint)
+
+        let minCost =
+            pathsForDirs
+            |> List.minBy (fun (_, (cost, _)) -> cost)
+            |> snd
+            |> fst
+
+        let allPaths =
+            pathsForDirs
+            |> List.filter (fun (_, (c, _)) -> c = minCost)
+            |> List.collect (fun (_, (_, paths)) -> paths)
+
+        (minCost, allPaths)
     else
         let (next, (costToHere, pathToHere)) = queue.Dequeue()
 
-        if next |> fst = endPoint then
-            (costToHere, pathToHere |> List.rev)
+        if next |> fst = endPoint && exitEarly then
+            (costToHere, [ pathToHere |> List.rev ])
         else
             let newVisited =
                 visited
                 |> Map.change (next) (function
-                    | Some (currCost, currPath) ->
+                    | Some (currCost, currPaths) ->
                         if currCost < costToHere then
-                            Some(currCost, currPath)
+                            Some(currCost, currPaths)
+                        else if currCost = costToHere then
+                            Some(currCost, pathToHere :: currPaths)
                         else
-                            Some(costToHere, pathToHere)
-                    | None -> Some(costToHere, pathToHere))
+                            Some(costToHere, [ pathToHere ])
+                    | None -> Some(costToHere, [ pathToHere ]))
 
             let adjacent = getAdjacent newVisited next
 
@@ -78,21 +97,23 @@ let rec findBestPath
                 let newCost = costToHere + cost
                 queue.Enqueue((coordAndDir, (newCost, coordAndDir :: pathToHere)), newCost)
 
-            findBestPath getAdjacent queue newVisited
+            findBestPath exitEarly getAdjacent queue newVisited
 
 let getAdjacent = getAdjacentAndCost data
 let startingQueue = PriorityQueue()
+startingQueue.Enqueue(((start, East), (0, [])), 0)
 
-let add accStart (dir: Direction) =
-    startingQueue.Enqueue(((start, dir), (0, [])), 0)
-    accStart |> Map.add (start, dir) (0, [])
+findBestPath true getAdjacent startingQueue Map.empty
+|> fst
+|> printfn "Part 1: %d"
 
-let a =
-    [ East ]//North; East; South; East ]
-    |> List.fold add Map.empty
-// startingQueue.Enqueue((start, East), 0)
-// startingQueue.Enqueue((start, South), 0)
-// startingQueue.Enqueue((start, West), 0)
+let startingQueue2 = PriorityQueue()
+startingQueue2.Enqueue(((start, East), (0, [])), 0)
 
-findBestPath getAdjacent startingQueue a
-|> printfn "%A"
+// There's a bug here... it's off by one - I need to come back and fix this
+findBestPath false getAdjacent startingQueue2 Map.empty
+|> snd
+|> List.collect (List.map fst)
+|> List.distinct
+|> List.length
+|> printfn "Part 2: %d"
