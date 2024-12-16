@@ -110,10 +110,10 @@ findBestPath true getAdjacent startingQueue Map.empty
 let startingQueue2 = PriorityQueue()
 startingQueue2.Enqueue(((start, East), (0, [])), 0)
 
-// There's a bug here... it's off by one - I need to come back and fix this
 findBestPath false getAdjacent startingQueue2 Map.empty
 |> snd
 |> List.collect (List.map fst)
+|> List.append [start]
 |> List.distinct
 |> List.length
 |> printfn "Part 2: %d"
