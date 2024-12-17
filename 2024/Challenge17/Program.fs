@@ -33,8 +33,8 @@ let rec runProgram (instructions: int array) (a, b, c) ip output expectedOutput 
         | 0 ->
             match getCombo op with
             | Some combo ->
-                let denom = Math.Pow(2, float combo)
-                let newA = float a / denom |> int
+                let denom = pown 2L (int combo) |> float// Math.Pow(2, float combo)
+                let newA = float a / denom |> int64
                 runProgram instructions (newA, b, c) (ip + 2) output expectedOutput
             | None -> None
         | 1 -> runProgram instructions (a, b ^^^ op, c) (ip + 2) output expectedOutput
@@ -79,11 +79,39 @@ let res =
 
 String.Join(",", res) |> printfn "Part 1: %s"
 
-let instList = instructions |> Array.toList
+let withoutJump = instructions |> Array.take 14
 
-seq { 1L .. Int64.MaxValue }
-|> Seq.pick (fun a ->
-    match runProgram instructions (a, b, c) 0 [] (Some instList) with
-    | Some output when output = instList -> Some(a)
-    | _ -> None)
-|> printfn "Part 2: %d"
+let rec findNumber number expected toMatch : int64 option =
+    match expected with
+    | [] -> Some(number / 8L)
+    | next :: rest ->
+        let toMatch = next :: toMatch
+
+        let a =
+            seq { number .. (number + 7L) }
+            |> Seq.filter (fun i ->
+              let b = runProgram withoutJump (i, 0, 0) 0 [] None
+              b = Some([next]))
+
+        a
+        |> Seq.tryPick (fun i -> findNumber (i * 8L) rest toMatch)
+// |> Seq.head
+
+//[|2;4;1;5;7|]
+let newRes =
+    findNumber 0 (instructions |> Array.rev  |> Array.toList) []
+    |> Option.get
+// |> (fun i -> runProgram instructions (i, 0, 0) 0 [] None)
+newRes |> printfn "%A"
+
+// runProgram instructions (3226769227L, 0, 0) 0 [] None
+// |> printfn "%A"
+
+let resPart2 =runProgram instructions (newRes, 0, 0) 0 [] None |> Option.get
+String.Join(",", resPart2) |> printfn "Part 2: %s"
+
+newRes
+|> printfn "%d"
+
+// runProgram newInst (114, 0, 0) 0 [] None
+// |> printfn "%A"
