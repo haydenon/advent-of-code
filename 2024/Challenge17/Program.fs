@@ -61,14 +61,14 @@ let rec runProgram (instructions: int array) (a, b, c) ip output expectedOutput 
             match getCombo op with
             | Some combo ->
                 let denom = Math.Pow(2, float combo)
-                let newB = float a / denom |> int
+                let newB = float a / denom |> int64
                 runProgram instructions (a, newB, c) (ip + 2) output expectedOutput
             | None -> None
         | 7 ->
             match getCombo op with
             | Some combo ->
                 let denom = Math.Pow(2, float combo)
-                let newC = float a / denom |> int
+                let newC = float a / denom |> int64
                 runProgram instructions (a, b, newC) (ip + 2) output expectedOutput
             | None -> None
         | _ -> None
@@ -90,8 +90,8 @@ let rec findNumber number expected toMatch : int64 option =
         let a =
             seq { number .. (number + 7L) }
             |> Seq.filter (fun i ->
-              let b = runProgram withoutJump (i, 0, 0) 0 [] None
-              b = Some([next]))
+              let b = runProgram instructions (i, 0, 0) 0 [] None
+              b = Some(toMatch))
 
         a
         |> Seq.tryPick (fun i -> findNumber (i * 8L) rest toMatch)
@@ -108,6 +108,7 @@ newRes |> printfn "%A"
 // |> printfn "%A"
 
 let resPart2 =runProgram instructions (newRes, 0, 0) 0 [] None |> Option.get
+resPart2 |> Array.ofList = instructions |> printfn "%A"
 String.Join(",", resPart2) |> printfn "Part 2: %s"
 
 newRes
