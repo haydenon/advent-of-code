@@ -1,5 +1,4 @@
 ﻿open System
-open System.Collections.Generic
 
 let loadData () =
     let text = System.IO.File.ReadAllLines("./input.txt")
@@ -90,29 +89,15 @@ let rec findNumber number expected toMatch : int64 option =
         let a =
             seq { number .. (number + 7L) }
             |> Seq.filter (fun i ->
-              let b = runProgram instructions (i, 0, 0) 0 [] None
-              b = Some(toMatch))
+              let b = runProgram withoutJump (i, 0, 0) 0 [] None
+              b = Some([next]))
 
         a
         |> Seq.tryPick (fun i -> findNumber (i * 8L) rest toMatch)
-// |> Seq.head
 
-//[|2;4;1;5;7|]
 let newRes =
     findNumber 0 (instructions |> Array.rev  |> Array.toList) []
     |> Option.get
-// |> (fun i -> runProgram instructions (i, 0, 0) 0 [] None)
-newRes |> printfn "%A"
-
-// runProgram instructions (3226769227L, 0, 0) 0 [] None
-// |> printfn "%A"
-
-let resPart2 =runProgram instructions (newRes, 0, 0) 0 [] None |> Option.get
-resPart2 |> Array.ofList = instructions |> printfn "%A"
-String.Join(",", resPart2) |> printfn "Part 2: %s"
 
 newRes
-|> printfn "%d"
-
-// runProgram newInst (114, 0, 0) 0 [] None
-// |> printfn "%A"
+|> printfn "Part 2: %d"
