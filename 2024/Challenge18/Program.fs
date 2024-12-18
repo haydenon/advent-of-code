@@ -14,7 +14,7 @@ let data = loadData ()
 
 let width = 71
 let height = 71
-
+let part1Start = 1024
 let allCoords = Seq.allPairs (seq { 0 .. width - 1 }) (seq { 0 .. height - 1 })
 
 let start = (0, 0)
@@ -47,25 +47,19 @@ let rec findBestPath
     (visited: VisitedMap)
     =
     if queue.Count = 0 then
-        let pathsForDirs =
-            visited
-            |> Map.toList
-            |> List.filter (fun ((coord), _) -> coord = endPoint)
-
-        let minCost =
-            pathsForDirs
-            |> List.minBy (fun (_, (cost)) -> cost)
-            |> snd
-
-
-        (minCost)
+        match visited |> Map.tryFind endPoint with
+        | Some count -> Some count
+        | None -> None
     else
         let (next, (costToHere, pathToHere)) = queue.Dequeue()
 
         if visited |> Map.containsKey next then
             findBestPath exitEarly getAdjacent queue visited
         else if next = endPoint && exitEarly then
-            (costToHere)
+
+            match visited |> Map.tryFind endPoint with
+            | Some count -> Some (if costToHere < count then costToHere else count)
+            | None -> Some costToHere
         else
             let newVisited =
                 visited
@@ -73,8 +67,6 @@ let rec findBestPath
                     | Some (currCost) ->
                         if currCost < costToHere then
                             Some(currCost)
-                        // else if currCost = costToHere then
-                        //     Some(currCost, [])
                         else
                             Some(costToHere)
                     | None -> Some(costToHere))
@@ -102,15 +94,32 @@ let rec buildBoard (board: bool array array) count coords =
         board[y][x] <- true
         buildBoard board None rest
 
-let board = buildBoard (initBoard ()) (Some 1024) data
+let board = buildBoard (initBoard ()) (Some part1Start) data
+
 
 let getAdjacent = getAdjacentAndCost board
 let startingQueue = PriorityQueue()
 startingQueue.Enqueue((start, (0, [])), 0)
 
 findBestPath true getAdjacent startingQueue Map.empty
+|> Option.get
 |> printfn "Part 1: %d"
 
+
+let index =
+  seq { part1Start .. (width * height) }
+  |> Seq.choose (fun i ->
+      let getAdjacent = getAdjacentAndCost (buildBoard (initBoard ()) (Some i) data)
+      let queue = PriorityQueue()
+      queue.Enqueue((start, (0, [])), 0)
+      match findBestPath true getAdjacent queue Map.empty with
+      | Some _ -> Some i
+      | None -> None
+  )
+  |> Seq.max
+
+
+printfn "Part2: %d,%d" (data[index] |> fst) (data[index] |> snd)
 // let startingQueue2 = PriorityQueue()
 // startingQueue2.Enqueue(((start, East), (0, [])), 0)
 
