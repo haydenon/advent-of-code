@@ -20,41 +20,57 @@ let loadData () =
 let (components, patterns) = loadData ()
 
 let invalidSubstings = new HashSet<string>()
-let validSubstringCompositions = new Dictionary<string, string list>()
+let validSubstringCompositions = new Dictionary<string, int64>()
 
-let rec findComposition (components: string array) (text: string) =
+let rec findCompositions (components: string array) (text: string) =
     if invalidSubstings.Contains text then
         None
     else if validSubstringCompositions.ContainsKey text then
         Some(validSubstringCompositions.Item text)
     else if text.Length = 0 then
-        Some []
+        Some 1
     else
         let res =
             components
-            |> Array.tryPick (fun p ->
+            |> Array.map (fun p ->
                 if text.StartsWith(p) then
-                    match findComposition components (text.Substring(p.Length, text.Length - p.Length)) with
-                    | Some comp ->
-                        let newComp = p :: comp
-                        validSubstringCompositions.Add(text, newComp)
-                        Some newComp
-                    | None -> None
+                    findCompositions components (text.Substring(p.Length, text.Length - p.Length))
+                    |> Option.map (fun comp -> comp, p)
                 else
                     None)
 
-        match res with
-        | Some comp -> Some comp
+        let allComps =
+            res
+            |> Array.fold
+                (fun acc r ->
+                    match acc, r with
+                    | None, Some (comp, p) -> Some(comp)
+                    | Some (comps), Some (comp, p: string) ->
+                        Some(comps + comp)
+                    | Some comps, None -> Some comps
+                    | _ -> None)
+                None
+
+        match allComps with
+        | Some (allcomp) ->
+            validSubstringCompositions.Add(text, allcomp)
+            Some allcomp
         | None ->
             invalidSubstings.Add text |> ignore
             None
 
 let mutable i = 0
+patterns
+|> Array.choose (fun p ->
+  printfn "%d" i
+  i <- i + 1
+  findCompositions components p)
+|> Array.length
+|> printfn "Part 1: %d"
+
 
 patterns
 |> Array.choose (fun p ->
-    printfn "%d" i
-    i <- i + 1
-    findComposition components p)
-|> Array.length
-|> printfn "%A"
+  findCompositions components p)
+|> Array.sum
+|> printfn "Part 2: %d"
