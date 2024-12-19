@@ -45,8 +45,7 @@ let rec findCompositions (components: string array) (text: string) =
                 (fun acc r ->
                     match acc, r with
                     | None, Some (comp, p) -> Some(comp)
-                    | Some (comps), Some (comp, p: string) ->
-                        Some(comps + comp)
+                    | Some (comps), Some (comp, p: string) -> Some(comps + comp)
                     | Some comps, None -> Some comps
                     | _ -> None)
                 None
@@ -59,18 +58,13 @@ let rec findCompositions (components: string array) (text: string) =
             invalidSubstings.Add text |> ignore
             None
 
-let mutable i = 0
 patterns
-|> Array.choose (fun p ->
-  printfn "%d" i
-  i <- i + 1
-  findCompositions components p)
+|> Array.choose (findCompositions components)
 |> Array.length
 |> printfn "Part 1: %d"
 
 
 patterns
-|> Array.choose (fun p ->
-  findCompositions components p)
+|> Array.choose (findCompositions components)
 |> Array.sum
 |> printfn "Part 2: %d"
