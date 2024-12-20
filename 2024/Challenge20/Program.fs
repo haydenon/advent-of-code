@@ -37,11 +37,6 @@ let getAdjacentWithinDist dist x y =
         && (dx <> 0 || dy <> 0))
     |> Seq.map (fun (dx, dy) -> x + dx, y + dy)
     |> Seq.filter (fun (x, y) -> inBounds x y)
-// adjacent
-
-// |> List.map (fun (dx, dy) -> (x + dx, y + dy))
-// |> List.filter (fun (x, y) -> x >= 0 && x < width && y >= 0 && y < height)
-
 
 let rec getCosts visited (x, y) costs path cost =
     if grid[y][x] = 'E' then
@@ -84,18 +79,6 @@ let getCheatsFromPoint maxLength costs (x, y) : int list =
             (usualCost - dist)
             - (costs |> Map.find cheatCoord)))
     |> Seq.toList
-
-// let getCheatResults (wx, wy) =
-//     getAdjacent wx wy
-//     |> List.filter (fun (cx, cy) ->
-//         )
-//     |> List.map (fun (cheatCoord) -> ((wx, wy), cheatCoord, (usualcost - 2) - (costs |> map.find cheatcoord)))
-
-// let walls =
-//     getAdjacent x y
-//     |> List.filter (fun (nx, ny) -> grid[ny][nx] = '#')
-
-// walls |> List.collect getCheatResults
 
 let rec getCheats maxLength costs path cheats =
     match path with

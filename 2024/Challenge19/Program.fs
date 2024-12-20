@@ -19,14 +19,11 @@ let loadData () =
 
 let (components, patterns) = loadData ()
 
-let invalidSubstings = new HashSet<string>()
-let validSubstringCompositions = new Dictionary<string, int64>()
+let cache = new Dictionary<string, Option<int64>>()
 
 let rec findCompositions (components: string array) (text: string) =
-    if invalidSubstings.Contains text then
-        None
-    else if validSubstringCompositions.ContainsKey text then
-        Some(validSubstringCompositions.Item text)
+    if cache.ContainsKey text then
+        cache.Item text
     else if text.Length = 0 then
         Some 1
     else
@@ -50,13 +47,8 @@ let rec findCompositions (components: string array) (text: string) =
                     | _ -> None)
                 None
 
-        match allComps with
-        | Some (allcomp) ->
-            validSubstringCompositions.Add(text, allcomp)
-            Some allcomp
-        | None ->
-            invalidSubstings.Add text |> ignore
-            None
+        cache.Add(text,allComps)
+        allComps
 
 patterns
 |> Array.choose (findCompositions components)
