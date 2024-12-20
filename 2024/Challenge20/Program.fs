@@ -21,10 +21,26 @@ let endPoint =
 
 let adjacent = [ (-1, 0); (1, 0); (0, -1); (0, 1) ]
 
+
+let inBounds x y =
+    x >= 0 && x < width && y >= 0 && y < height
+
 let getAdjacent x y =
     adjacent
     |> List.map (fun (dx, dy) -> (x + dx, y + dy))
-    |> List.filter (fun (x, y) -> x >= 0 && x < width && y >= 0 && y < height)
+    |> List.filter (fun (x, y) -> inBounds x y)
+
+let getAdjacentWithinDist dist x y =
+    Seq.allPairs (seq { -dist .. dist }) ((seq { -dist .. dist }))
+    |> Seq.filter (fun (dx, dy) ->
+        (abs dx) + (abs dy) <= dist
+        && (dx <> 0 || dy <> 0))
+    |> Seq.map (fun (dx, dy) -> x + dx, y + dy)
+    |> Seq.filter (fun (x, y) -> inBounds x y)
+// adjacent
+
+// |> List.map (fun (dx, dy) -> (x + dx, y + dy))
+// |> List.filter (fun (x, y) -> x >= 0 && x < width && y >= 0 && y < height)
 
 
 let rec getCosts visited (x, y) costs path cost =
@@ -51,38 +67,59 @@ let costs =
 
 type Coord = int * int
 
-let getCheatsFromPoint costs (x, y) : (Coord * Coord * int) list =
+let getCheatsFromPoint maxLength costs (x, y) : int list =
     let usualCost = costs |> Map.find (x, y)
+    let endPoints = HashSet<Coord>()
 
-    let getCheatResults (wx, wy) =
-        getAdjacent wx wy
-        |> List.filter (fun (cx, cy) ->
+    seq { 2..maxLength }
+    |> Seq.collect (fun dist ->
+        getAdjacentWithinDist dist x y
+        |> Seq.filter (fun (cx, cy) ->
             (grid[cy][cx] = '.' || grid[cy][cx] = 'E')
-            && costs |> Map.find (cx, cy) < (usualCost - 2))
-        |> List.map (fun (cheatCoord) -> ((wx, wy), cheatCoord, (usualCost - 2) - (costs |> Map.find cheatCoord)))
+            && not (endPoints.Contains((cx, cy)))
+            && costs |> Map.find (cx, cy) < (usualCost - dist))
+        |> Seq.map (fun cheatCoord ->
+            endPoints.Add cheatCoord |> ignore
 
-    let walls =
-        getAdjacent x y
-        |> List.filter (fun (nx, ny) -> grid[ny][nx] = '#')
+            (usualCost - dist)
+            - (costs |> Map.find cheatCoord)))
+    |> Seq.toList
 
-    walls |> List.collect getCheatResults
+// let getCheatResults (wx, wy) =
+//     getAdjacent wx wy
+//     |> List.filter (fun (cx, cy) ->
+//         )
+//     |> List.map (fun (cheatCoord) -> ((wx, wy), cheatCoord, (usualcost - 2) - (costs |> map.find cheatcoord)))
 
-let rec getCheats costs path cheats =
+// let walls =
+//     getAdjacent x y
+//     |> List.filter (fun (nx, ny) -> grid[ny][nx] = '#')
+
+// walls |> List.collect getCheatResults
+
+let rec getCheats maxLength costs path cheats =
     match path with
     | [] -> cheats
     | coord :: rest ->
-        let cheapsFromPoint = getCheatsFromPoint costs coord
-        getCheats costs rest (List.append cheapsFromPoint cheats)
+        let cheapsFromPoint = getCheatsFromPoint maxLength costs coord
+        getCheats maxLength costs rest (List.append cheapsFromPoint cheats)
 
-getCheats costs path []
-|> List.filter (fun (_,_,savings) -> savings  >= 100)
+let cheatsToMap cheats =
+    cheats
+    |> List.fold
+        (fun acc (_, _, savings) ->
+            acc
+            |> Map.change savings (function
+                | Some count -> Some(count + 1)
+                | None -> Some 1))
+        Map.empty
+
+getCheats 2 costs path []
+|> List.filter (fun savings -> savings >= 100)
 |> List.length
-|> printfn "%d"
-// |> List.fold
-//     (fun acc (c1, c2, savings) ->
-//         acc
-//         |> Map.change savings (function
-//             | Some count -> Some(count + 1)
-//             | None -> Some 1))
-//     Map.empty
-// |> printfn "%A"
+|> printfn "Part 1: %d"
+
+getCheats 20 costs path []
+|> List.filter (fun savings -> savings >= 100)
+|> List.length
+|> printfn "Part 2: %d"
