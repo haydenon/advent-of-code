@@ -103,64 +103,135 @@ let rec getPaths pathMap currKey keys (paths: char list list) =
 // let newResult = List.append result (List.append (getDirMoves (dx, dy)) [ 'A' ])
 // getShortest coords (kx, ky) rest newResult
 
-// let getDirMoves (dx, dy) =
-//     let getMovesInDir dir delta =
-//         seq { 1..delta }
-//         |> Seq.map (fun _ -> dir)
-//         |> Seq.toList
+let getDirMoves (dx, dy) =
+    let getMovesInDir dir delta =
+        seq { 1..delta }
+        |> Seq.map (fun _ -> dir)
+        |> Seq.toList
 
-//     let xMoves =
-//         if dx < 0 then
-//             (getMovesInDir '<' (abs dx))
-//         else if dx > 0 then
-//             (getMovesInDir '>' (abs dx))
-//         else
-//             []
+    let xMoves =
+        if dx < 0 then
+            (getMovesInDir '<' (abs dx))
+        else if dx > 0 then
+            (getMovesInDir '>' (abs dx))
+        else
+            []
 
-//     let yMoves =
-//         if dy < 0 then
-//             (getMovesInDir '^' (abs dy))
-//         else if dy > 0 then
-//             (getMovesInDir 'v' (abs dy))
-//         else
-//             []
+    let yMoves =
+        if dy < 0 then
+            (getMovesInDir '^' (abs dy))
+        else if dy > 0 then
+            (getMovesInDir 'v' (abs dy))
+        else
+            []
 
-//     let getOrder =
-//         function
-//         | '>'
-//         | '^' -> 0
-//         | 'v'
-//         | '<' -> 1
-//         | _ -> failwith "Invalid move"
+    let getOrder =
+        function
+        | '>' -> 0
+        | '^' -> 1
+        | 'v' -> 2
+        | '<' -> 3
+        | _ -> failwith "Invalid move"
 
-//     List.append xMoves yMoves |> List.sortBy getOrder
+    List.append xMoves yMoves |> List.sortBy getOrder
 
-// let rec getShortest coords (x, y) keys result =
-//     match keys with
-//     | [] -> result
-//     | key :: rest ->
-//         let kx, ky = coords |> Map.find key
-//         let (dx, dy) = kx - x, ky - y
-//         let newResult = List.append result (List.append (getDirMoves (dx, dy)) [ 'A' ])
-//         getShortest coords (kx, ky) rest newResult
+let rec getShortest coords (x, y) keys result =
+    match keys with
+    | [] -> result
+    | key :: rest ->
+        let kx, ky = coords |> Map.find key
+        let (dx, dy) = kx - x, ky - y
+        let newResult = List.append result (List.append (getDirMoves (dx, dy)) [ 'A' ])
+        getShortest coords (kx, ky) rest newResult
+
+let rec evaluate levels coords currCoord keys output outputs =
+    match keys with
+    | [] ->
+        let atLevel = output |> List.rev
+
+        match levels with
+        | [] -> (atLevel :: outputs) |> List.rev
+        | (coords, start) :: rest -> evaluate rest coords start atLevel [] (atLevel :: outputs)
+    | key :: rest ->
+        if key = 'A' then
+            evaluate
+                levels
+                coords
+                currCoord
+                rest
+                ((coords
+                  |> Map.toSeq
+                  |> Seq.find (fun (_, c) -> c = currCoord)
+                  |> fst)
+                 :: output)
+                outputs
+        else
+            let (x, y) = currCoord
+
+            let newCoord =
+                match key with
+                | '^' -> (x, y - 1)
+                | 'v' -> (x, y + 1)
+                | '<' -> (x - 1, y)
+                | '>' -> (x + 1, y)
+                | _ -> failwith "Invalid"
+
+            evaluate levels coords newCoord rest output outputs
+
+let print chars =
+    chars |> List.toArray |> String |> printfn "%s"
+
+let printSequence sequence =
+    let input = sequence |> Seq.toList
+    let levels = [ (dirCoords, (2, 0)) ]
+    print input
+    let outputs = evaluate levels dirCoords (2, 0) input [] []
+    outputs |> List.iter print
 
 let data = loadData ()
 
 let getComplexities keys =
-    let numMoves = getPaths allNumPaths 'A' keys [[]]
-    let dir1Moves = numMoves |> List.collect (fun path ->  getPaths allDirPaths 'A' path  [[]])
+    let numMoves = getPaths allNumPaths 'A' keys [ [] ]
+
+    let dir1Moves =
+        numMoves
+        |> List.collect (fun path -> getPaths allDirPaths 'A' path [ [] ])
+
     let minLength =
-      dir1Moves |> List.collect (fun path ->  getPaths allDirPaths 'A' path  [[]])
-      |> List.map List.length
-      |> List.min
-    let num = keys |> List.take 3 |> Array.ofList |> String |> int
+        dir1Moves
+        |> List.collect (fun path -> getPaths allDirPaths 'A' path [ [] ])
+        |> List.map List.length
+        |> List.min
+
+    let num =
+        keys
+        |> List.take 3
+        |> Array.ofList
+        |> String
+        |> int
+
     minLength * num
 
-data
-|> List.map getComplexities
-|> List.sum
-// |> printfn "%A"
-|> printfn "Part 1: %d"
+// data
+// |> List.map getComplexities
+// |> List.sum
+// // |> printfn "%A"
+// |> printfn "Part 1: %d"
+
+"<v<A>>^AvA^A<vA<AA>>^AAvA<^A>AAvA^A<vA>^AA<A>A<v<A>A>^AAAvA<^A>A"
+|> printSequence
+
+
+
+//("37" |> Seq.toList)
+let level1 = getShortest numberCoords (2, 3) data[4] []
+let level2 = getShortest dirCoords (2, 0) level1 []
+let level3 = getShortest dirCoords (2, 0) level2 []
+level3 |> List.toArray |> String |> printSequence
+// |> Seq.toList
+// |> fun keys -> evaluate [] dirCoords (2,0) keys []
+// |> fun keys -> evaluate [] dirCoords (2,0) keys []
+// |> print
 
 // data
 // |> List.map getSequence
