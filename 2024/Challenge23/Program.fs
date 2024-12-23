@@ -85,16 +85,6 @@ let rec findLargestGroup (graph: Map<string, Node>) nodes (output: string list l
                 let intersection = otherConnections |> Set.intersect acc
                 findCommon intersection (visited |> Set.add next)
             | None -> acc
-        // node.Connections
-        // |> Set.fold
-        //     (fun acc c ->
-        //         let otherConnections =
-        //             ((graph |> Map.find c).Connections
-        //              + ([ c ] |> Set.ofList))
-
-        //         let intersection = otherConnections |> Set.intersect acc
-        //         intersection)
-        //     (node.Connections + ([ nodeName ] |> Set.ofList))
 
         node.Connections
         |> Set.toList
