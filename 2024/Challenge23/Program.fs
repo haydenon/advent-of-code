@@ -58,7 +58,6 @@ let rec getGroups (graph: Map<string, Node>) nodes (output: Set<string>) =
 
         getGroups graph rest newOutput
 
-
 let tNodes =
     graph
     |> Map.keys
@@ -67,4 +66,59 @@ let tNodes =
 
 getGroups graph tNodes Set.empty
 |> Set.count
-|> printfn "%A"
+|> printfn "Part 1: %d"
+
+let visited = HashSet<string>()
+
+let rec findLargestGroup (graph: Map<string, Node>) nodes (output: string list list) =
+    let rec getGroup (nodeName) =
+        let node = graph |> Map.find nodeName
+        visited.Add nodeName |> ignore
+
+        let rec findCommon acc visited =
+            match acc - visited |> Set.toSeq |> Seq.tryHead with
+            | Some next ->
+                let otherConnections =
+                    ((graph |> Map.find next).Connections
+                     + ([ next ] |> Set.ofList))
+
+                let intersection = otherConnections |> Set.intersect acc
+                findCommon intersection (visited |> Set.add next)
+            | None -> acc
+        // node.Connections
+        // |> Set.fold
+        //     (fun acc c ->
+        //         let otherConnections =
+        //             ((graph |> Map.find c).Connections
+        //              + ([ c ] |> Set.ofList))
+
+        //         let intersection = otherConnections |> Set.intersect acc
+        //         intersection)
+        //     (node.Connections + ([ nodeName ] |> Set.ofList))
+
+        node.Connections
+        |> Set.toList
+        |> List.map (fun c ->
+            let otherConnections = ((graph |> Map.find c).Connections.Add(c))
+
+            let intersection =
+                otherConnections
+                |> Set.intersect (node.Connections.Add nodeName)
+
+            findCommon intersection ([ nodeName; c ] |> Set.ofList))
+        |> List.maxBy Set.count
+
+    match nodes with
+    | [] -> output
+    | nodeName :: rest ->
+        if visited.Contains nodeName then
+            findLargestGroup graph rest output
+        else
+            let grouping = getGroup nodeName |> Set.toList
+            findLargestGroup graph rest (grouping :: output)
+
+findLargestGroup graph (graph |> Map.keys |> Seq.toList) []
+|> List.maxBy List.length
+|> List.sort
+|> fun chars -> String.Join(",", chars)
+|> printfn "%s"
