@@ -199,27 +199,43 @@ let getBestPath source dest =
         else
             allNumPaths
 
-    let (_,_,results) =
-      seq { 1..3 }
-      |> Seq.fold
-          (fun (src, paths, solutions) _ ->
-              ('A',
-              allDirPaths,
-              solutions
-              |> List.collect (fun dst -> getPaths paths src dst [[]])))
-          (source, paths, [ [ dest ] ])
+    let (_, _, results) =
+        seq { 1..3 }
+        |> Seq.fold
+            (fun (src, paths, solutions) _ ->
+                ('A',
+                 allDirPaths,
+                 solutions
+                 |> List.collect (fun dst -> getPaths paths src dst [ [] ])))
+            (source, paths, [ [ dest ] ])
+
     results
     |> List.head
-    |> fun a -> evaluate [(dirCoords, (2,0))] dirCoords (2,0) a [] []
+    |> fun a -> evaluate [ (dirCoords, (2, 0)) ] dirCoords (2, 0) a [] []
     |> List.last
 
-let cache = Dictionary<(char * char) * int, char list>()
+let cache = Dictionary<(char * char) * int, int64>()
 
 let rec findShortest levels source dest =
     if cache.ContainsKey((source, dest), levels) then
         cache[(source, dest), levels]
     else
-        []
+        let next = getBestPath source dest
+
+        let result =
+            if levels = 0 then
+                next |> List.length |> int64
+            else
+                ('A' :: next)
+                |> List.pairwise
+                |> List.sumBy (fun (s, d) ->
+                    if cache.ContainsKey((source, dest), levels - 1) then
+                        cache[(source, dest), levels - 1]
+                    else
+                        findShortest (levels - 1) s d)
+
+        cache.Add(((source, dest), levels), result)
+        result
 
 let data = loadData ()
 
@@ -262,8 +278,7 @@ let level2 = getShortest dirCoords (2, 0) level1 []
 let level3 = getShortest dirCoords (2, 0) level2 []
 level3 |> List.toArray |> String |> printSequence
 
-getBestPath '3' '7'
-|> printfn "%A"
+findShortest 25 '3' '7' |> printfn "%A"
 // |> Seq.toList
 // |> fun keys -> evaluate [] dirCoords (2,0) keys []
 // |> fun keys -> evaluate [] dirCoords (2,0) keys []
