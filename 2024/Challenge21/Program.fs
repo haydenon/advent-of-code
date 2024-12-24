@@ -188,6 +188,39 @@ let printSequence sequence =
     let outputs = evaluate levels dirCoords (2, 0) input [] []
     outputs |> List.iter print
 
+// New attempt
+let dirs = [ '<'; '^'; 'v'; '>' ]
+
+let getBestPath source dest =
+    let paths =
+        if dirs |> List.contains source
+           || dirs |> List.contains dest then
+            allDirPaths
+        else
+            allNumPaths
+
+    let (_,_,results) =
+      seq { 1..3 }
+      |> Seq.fold
+          (fun (src, paths, solutions) _ ->
+              ('A',
+              allDirPaths,
+              solutions
+              |> List.collect (fun dst -> getPaths paths src dst [[]])))
+          (source, paths, [ [ dest ] ])
+    results
+    |> List.head
+    |> fun a -> evaluate [(dirCoords, (2,0))] dirCoords (2,0) a [] []
+    |> List.last
+
+let cache = Dictionary<(char * char) * int, char list>()
+
+let rec findShortest levels source dest =
+    if cache.ContainsKey((source, dest), levels) then
+        cache[(source, dest), levels]
+    else
+        []
+
 let data = loadData ()
 
 let getComplexities keys =
@@ -228,6 +261,9 @@ let level1 = getShortest numberCoords (2, 3) data[4] []
 let level2 = getShortest dirCoords (2, 0) level1 []
 let level3 = getShortest dirCoords (2, 0) level2 []
 level3 |> List.toArray |> String |> printSequence
+
+getBestPath '3' '7'
+|> printfn "%A"
 // |> Seq.toList
 // |> fun keys -> evaluate [] dirCoords (2,0) keys []
 // |> fun keys -> evaluate [] dirCoords (2,0) keys []
