@@ -399,12 +399,21 @@ let evaluate (inputs: (string * bool) array) (operations: (string * string * str
         (valueToOperation: Map<string, string * string * string>)
         : Option<(string * string) list> =
         if count = 0 then
-            // let possiblyInvalid =
-            //   seq { 0..maxVal }
-            //   |> Seq.collect (fun idx -> findPossibleInvalid valueToOperation maxVal idx (HashSet()))
-            //   |> Set.ofSeq
-            // if possiblyInvalid.Count = 0 then
-            if mismatched.Length = 0 then
+            let updatedOps =
+              pairs
+              |> List.fold
+                  (fun acc (a, b) ->
+                      let aGate = acc |> Map.find a
+                      let bGate = acc |> Map.find b
+
+                      acc |> Map.add b aGate |> Map.add a bGate)
+                  valueToOperation
+
+            let noInvalid =
+              seq { 0..maxVal }
+              |> Seq.forall (fun idx -> findPossibleInvalid updatedOps maxVal idx (HashSet()) |> List.isEmpty)
+            if noInvalid then
+            // if mismatched.Length = 0 then
                 Some(pairs)
             else
                 None
@@ -412,8 +421,6 @@ let evaluate (inputs: (string * bool) array) (operations: (string * string * str
             values
             |> Seq.tryPick (fun v ->
                 let sorted = (sort (previous, v))
-                // if v = "rqf" then
-                //   printfn ""
 
                 // if ((sorted |> fst = "z00" && sorted |> snd = "z05")
                 //     || (sorted |> fst = "z01" && sorted |> snd = "z02"))
@@ -424,68 +431,68 @@ let evaluate (inputs: (string * bool) array) (operations: (string * string * str
                 //    && pairs.IsEmpty then
                 //     printfn ""
 
-                if
-                    invalidPairs.Contains sorted
-                    || invalidPairings.Contains(sortList (sorted :: pairs))
-                then
-                    None
-                else
-                    let aGate = valueToOperation |> Map.find previous
-                    let bGate = valueToOperation |> Map.find v
+                // if
+                //     invalidPairs.Contains sorted
+                //     || invalidPairings.Contains(sortList (sorted :: pairs))
+                // then
+                //     None
+                // else
+                let aGate = valueToOperation |> Map.find previous
+                let bGate = valueToOperation |> Map.find v
 
-                    let replaced =
+                // let replaced =
+                //     valueToOperation
+                //     |> Map.add previous bGate
+                //     |> Map.add v aGate
+
+                // match evaluateNumber "z" inputs replaced with
+                // | Some (res, _) ->
+                //     let result = bitArrayToDisplay res
+
+
+                    // if (seq { 0..maxVal }
+                    //     |> Seq.exists (fun idx ->
+                    //         result[63 - idx] <> expected[63 - idx]
+                    //         && not (mismatched |> Array.contains idx)))
+                    //    || (seq { 0..maxVal }
+                    //        |> Seq.filter (fun idx -> result[63 - idx] <> expected[63 - idx])
+                    //        |> Seq.length)
+                    //       >= mismatched.Length then
+                    // invalidPairs.Add sorted |> ignore
+
+                    // invalidPairings.Add(sortList (sorted :: pairs))
+                    // |> ignore
+
+                    //     None
+                    // else
+                // let newMismatched =
+                //     seq { 0..63 }
+                //     |> Seq.filter (fun idx -> result[63 - idx] <> expected[63 - idx])
+                //     |> Seq.toArray
+
+                let result =
+                    findPairings
+                        (sorted :: pairs)
+                        ""
+                        (count - 1)
+                        (values - ([ v ] |> Set.ofList))
+                        mismatched
                         valueToOperation
-                        |> Map.add previous bGate
-                        |> Map.add v aGate
 
-                    match evaluateNumber "z" inputs replaced with
-                    | Some (res, _) ->
-                        let result = bitArrayToDisplay res
+                match result with
+                | Some a -> Some a
+                | None ->
+                    // invalidPairings.Add(sortList (sorted :: pairs))
+                    // |> ignore
 
+                    None)
+                // | None ->
+                //     // invalidPairs.Add sorted |> ignore
 
-                        // if (seq { 0..maxVal }
-                        //     |> Seq.exists (fun idx ->
-                        //         result[63 - idx] <> expected[63 - idx]
-                        //         && not (mismatched |> Array.contains idx)))
-                        //    || (seq { 0..maxVal }
-                        //        |> Seq.filter (fun idx -> result[63 - idx] <> expected[63 - idx])
-                        //        |> Seq.length)
-                        //       >= mismatched.Length then
-                        // invalidPairs.Add sorted |> ignore
+                //     // invalidPairings.Add(sortList (sorted :: pairs))
+                //     // |> ignore
 
-                        // invalidPairings.Add(sortList (sorted :: pairs))
-                        // |> ignore
-
-                        //     None
-                        // else
-                        let newMismatched =
-                            seq { 0..63 }
-                            |> Seq.filter (fun idx -> result[63 - idx] <> expected[63 - idx])
-                            |> Seq.toArray
-
-                        let result =
-                            findPairings
-                                (sorted :: pairs)
-                                ""
-                                (count - 1)
-                                (values - ([ v ] |> Set.ofList))
-                                newMismatched
-                                replaced
-
-                        match result with
-                        | Some a -> Some a
-                        | None ->
-                            // invalidPairings.Add(sortList (sorted :: pairs))
-                            // |> ignore
-
-                            None
-                    | None ->
-                        // invalidPairs.Add sorted |> ignore
-
-                        // invalidPairings.Add(sortList (sorted :: pairs))
-                        // |> ignore
-
-                        None)
+                //     None)
         else
             values
             |> Seq.tryPick (fun v ->
@@ -606,8 +613,10 @@ let evaluate (inputs: (string * bool) array) (operations: (string * string * str
     // let unchecked = unchecked |> Set.ofSeq
     // let possiblyInvalid = possiblyInvalid |> Set.union (unchecked - visited)
     // printfn "%d" possiblyInvalid.Count
-    findPairings [] "" 8 possiblyInvalid mismatched valueToOperation
-    |> printfn "%A"
+    let result = findPairings [] "" 8 possiblyInvalid mismatched valueToOperation |> Option.get
+    let allValues = result |> List.collect (fun (a,b) -> [a;b]) |> List.sort
+    String.Join(",", allValues)
+    |> printfn "Part 2: %s"
     // printfn "%A" eligibleTwo.Count
 
     originalZ
