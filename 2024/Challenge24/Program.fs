@@ -226,18 +226,78 @@ let evaluate (inputs: (string * bool) array) (operations: (string * string * str
         index
         (visited: HashSet<string>)
         =
-        // if index = max then
-        //     []
-        // else if index = 0 then
-        //     []
-        // else
-        if index = max then
-          printfn ""
+        if index = max then printfn ""
         let sumName = ("z" + (sprintf "%02d" index))
         let (sumLeft, sumOp, sumRight) = valueToOperation |> Map.find sumName
         visited.Add sumName |> ignore
 
-        if sumOp <> "XOR" then
+        let checkCarry carryName =
+            let (carryLeft, carryOp, carryRight) = valueToOperation |> Map.find carryName
+            visited.Add carryName |> ignore
+
+            if carryOp <> "OR" then
+                [ carryName ]
+            else
+                let (inpAndLeft, inpAndOp, inpAndRight) = valueToOperation |> Map.find carryRight
+                let yName = ("y" + (sprintf "%02d" (index - 1)))
+                let xName = ("x" + (sprintf "%02d" (index - 1)))
+                visited.Add carryRight |> ignore
+
+                let invalid =
+                    if inpAndOp <> "AND"
+                       || (inpAndLeft <> yName && inpAndRight <> yName)
+                       || (inpAndLeft <> xName && inpAndRight <> xName) then
+                        [ sumLeft ]
+                    else
+                        []
+
+                let checkCarrySumAndPrevCarry name =
+                    let (carrySumPrevLeft, carrySumPrevOp, carrySumPrevRight) =
+                        valueToOperation |> Map.find name
+
+                    if
+                        carrySumPrevOp <> "AND"
+                        || inputRegex.IsMatch(carrySumPrevLeft)
+                        || inputRegex.IsMatch(carrySumPrevRight)
+                    then
+                        [ name ]
+                    else
+                        let (leftLeft, leftOp, leftRight) = valueToOperation |> Map.find carrySumPrevLeft
+
+                        let (rightLeft, rightOp, rightRight) =
+                            valueToOperation |> Map.find carrySumPrevRight
+
+                        let invalid =
+                            if leftOp = "XOR" then
+                                visited.Add carrySumPrevLeft |> ignore
+
+                                if ([ leftLeft; leftRight ] |> Set.ofList)
+                                   <> ([ yName; xName ] |> Set.ofList) then
+                                    [ carrySumPrevLeft ]
+                                else
+                                    []
+                            else
+                                []
+
+                        let invalid =
+                            if rightOp = "XOR" then
+                                visited.Add carrySumPrevRight |> ignore
+
+                                if ([ rightLeft; rightRight ] |> Set.ofList)
+                                   <> ([ yName; xName ] |> Set.ofList) then
+                                    carrySumPrevRight :: invalid
+                                else
+                                    invalid
+                            else
+                                invalid
+
+                        invalid
+
+                (checkCarrySumAndPrevCarry carryLeft) @ invalid
+
+        if index = max then
+            checkCarry sumName
+        else if sumOp <> "XOR" then
             [ sumName ]
         else if index = 0 then
             if
@@ -247,86 +307,37 @@ let evaluate (inputs: (string * bool) array) (operations: (string * string * str
                 [ sumName ]
             else
                 []
+
         else
-            let (inputLeft, inputOp, inputRight) = valueToOperation |> Map.find sumLeft
+            let (leftLeft, leftOp, leftRight) = valueToOperation |> Map.find sumLeft
+            let (rightLeft, rightOp, rightRight) = valueToOperation |> Map.find sumRight
             let yName = ("y" + (sprintf "%02d" index))
             let xName = ("x" + (sprintf "%02d" index))
 
-            let invalid =
-                if inputOp <> "XOR"
-                   || (inputLeft <> yName && inputRight <> yName)
-                   || (inputLeft <> xName && inputRight <> xName) then
-                    [ sumLeft ]
-                else
-                    []
+            if [ "OR"; "XOR" ]
+               <> ([ leftOp; rightOp ] |> List.sort) then
+                [ sumLeft; sumRight ]
+            else
+                let leftInput = leftOp = "XOR"
 
-            visited.Add sumLeft |> ignore
+                let (inputLeft, inputRight) =
+                    if leftInput then
+                        (leftLeft, leftRight)
+                    else
+                        (rightLeft, rightRight)
 
-            let checkCarry carryName =
-                let (carryLeft, carryOp, carryRight) = valueToOperation |> Map.find carryName
-                visited.Add carryName |> ignore
+                let invalid =
+                    if (inputLeft <> yName && inputRight <> yName)
+                       || (inputLeft <> xName && inputRight <> xName) then
+                        [ if leftInput then sumLeft else sumRight ]
+                    else
+                        []
 
-                if carryOp <> "OR" then
-                    [ carryName ]
-                else
-                    let (inpAndLeft, inpAndOp, inpAndRight) = valueToOperation |> Map.find carryRight
-                    let yName = ("y" + (sprintf "%02d" (index - 1)))
-                    let xName = ("x" + (sprintf "%02d" (index - 1)))
-                    visited.Add carryRight |> ignore
+                visited.Add(if leftInput then sumLeft else sumRight)
+                |> ignore
 
-                    let invalid =
-                        if inpAndOp <> "AND"
-                           || (inpAndLeft <> yName && inpAndRight <> yName)
-                           || (inpAndLeft <> xName && inpAndRight <> xName) then
-                            [ sumLeft ]
-                        else
-                            []
-
-                    let checkCarrySumAndPrevCarry name =
-                        let (carrySumPrevLeft, carrySumPrevOp, carrySumPrevRight) =
-                            valueToOperation |> Map.find name
-
-                        if
-                            carrySumPrevOp <> "AND"
-                            || inputRegex.IsMatch(carrySumPrevLeft)
-                            || inputRegex.IsMatch(carrySumPrevRight)
-                        then
-                            [ name ]
-                        else
-                            let (leftLeft, leftOp, leftRight) = valueToOperation |> Map.find carrySumPrevLeft
-
-                            let (rightLeft, rightOp, rightRight) =
-                                valueToOperation |> Map.find carrySumPrevRight
-
-                            let invalid =
-                                if leftOp = "XOR" then
-                                    visited.Add carrySumPrevLeft |> ignore
-
-                                    if ([ leftLeft; leftRight ] |> Set.ofList)
-                                       <> ([ yName; xName ] |> Set.ofList) then
-                                        [ carrySumPrevLeft ]
-                                    else
-                                        []
-                                else
-                                    []
-
-                            let invalid =
-                                if rightOp = "XOR" then
-                                    visited.Add carrySumPrevRight |> ignore
-
-                                    if ([ rightLeft; rightRight ] |> Set.ofList)
-                                       <> ([ yName; xName ] |> Set.ofList) then
-                                        carrySumPrevRight :: invalid
-                                    else
-                                        invalid
-                                else
-                                    invalid
-
-                            invalid
-
-                    (checkCarrySumAndPrevCarry carryLeft) @ invalid
-
-            (checkCarry sumRight) @ invalid
+                checkCarry (if leftInput then sumRight else sumLeft)
+                @ invalid
 
 
     let invalidPairings = HashSet<(string * string) list>()
