@@ -220,121 +220,98 @@ let evaluate (inputs: (string * bool) array) (operations: (string * string * str
     let sortList (pairs: (string * string) list) = pairs |> List.sortBy fst
     let inputRegex = Regex(@"^[xy][0-9]{2}$")
 
-    let unchecked = HashSet<string>()
-
-    let findPossibleInvalid
-        (valueToOperation: Map<string, string * string * string>)
-        max
-        index
-        (visited: HashSet<string>)
-        =
-        // if index = 26 then
-        //    printfn ""
+    let findPossibleInvalid (valueToOperation: Map<string, string * string * string>) max index =
         let sumName = ("z" + (sprintf "%02d" index))
         let (sumLeft, sumOp, sumRight) = valueToOperation |> Map.find sumName
-        visited.Add sumName |> ignore
 
         let checkCarry carryName =
             let (carryLeft, carryOp, carryRight) = valueToOperation |> Map.find carryName
-            visited.Add carryName |> ignore
+
             if index = 1 then
-              let yName = ("y" + (sprintf "%02d" (index - 1)))
-              let xName = ("x" + (sprintf "%02d" (index - 1)))
-              if carryOp <> "AND" || ([carryLeft;carryRight] |> List.sort) <> [xName;yName] then
-                [carryName]
-              else []
+                let yName = ("y" + (sprintf "%02d" (index - 1)))
+                let xName = ("x" + (sprintf "%02d" (index - 1)))
+
+                if carryOp <> "AND"
+                   || ([ carryLeft; carryRight ] |> List.sort)
+                      <> [ xName; yName ] then
+                    [ carryName ]
+                else
+                    []
             else
 
-              if carryOp <> "OR" then
-                  for gate in getGatesUsed carryName do
-                      unchecked.Add gate |> ignore
+            if carryOp <> "OR" then
+                [ carryName ]
+            else
+                let left = valueToOperation |> Map.find carryLeft
+                let right = valueToOperation |> Map.find carryRight
+                let yName = ("y" + (sprintf "%02d" (index - 1)))
+                let xName = ("x" + (sprintf "%02d" (index - 1)))
 
-                  [ carryName ]
-              else
-                  let left = valueToOperation |> Map.find carryLeft
-                  let right = valueToOperation |> Map.find carryRight
-                  let yName = ("y" + (sprintf "%02d" (index - 1)))
-                  let xName = ("x" + (sprintf "%02d" (index - 1)))
+                let inpAnd =
+                    [ left; right ]
+                    |> List.filter (fun (leftVal, op, rightVal) ->
+                        op = "AND"
+                        && ([ leftVal; rightVal ] |> List.sort) = [ xName; yName ])
 
-                  let inpAnd =
-                      [ left; right ]
-                      |> List.filter (fun (leftVal, op, rightVal) ->
-                          op = "AND"
-                          && ([ leftVal; rightVal ] |> List.sort) = [ xName; yName ])
+                if inpAnd |> List.length <> 1 then
+                    [ carryLeft; carryRight ]
+                else
+                    let inputAndWasLeft = left = (inpAnd |> List.head)
 
-                  if inpAnd |> List.length <> 1 then
-                      for gate in (getGatesUsed carryLeft) do
-                          unchecked.Add gate |> ignore
+                    let checkCarrySumAndPrevCarry name =
+                        let (carrySumPrevLeft, carrySumPrevOp, carrySumPrevRight) =
+                            valueToOperation |> Map.find name
 
-                      for gate in (getGatesUsed carryRight) do
-                          unchecked.Add gate |> ignore
+                        if
+                            carrySumPrevOp <> "AND"
+                            || inputRegex.IsMatch(carrySumPrevLeft)
+                            || inputRegex.IsMatch(carrySumPrevRight)
+                        then
+                            [ name ]
+                        else
+                            let (leftLeft, leftOp, leftRight) = valueToOperation |> Map.find carrySumPrevLeft
 
-                      [ carryLeft; carryRight ] // Maybe also carry name?
-                  else
-                      let inputAndWasLeft = left = (inpAnd |> List.head)
+                            let (rightLeft, rightOp, rightRight) =
+                                valueToOperation |> Map.find carrySumPrevRight
 
-                      let checkCarrySumAndPrevCarry name =
-                          let (carrySumPrevLeft, carrySumPrevOp, carrySumPrevRight) =
-                              valueToOperation |> Map.find name
+                            let gates =
+                                if index = 2 then
+                                    [ "AND"; "XOR" ]
+                                else
+                                    [ "OR"; "XOR" ]
 
-                          if
-                              carrySumPrevOp <> "AND"
-                              || inputRegex.IsMatch(carrySumPrevLeft)
-                              || inputRegex.IsMatch(carrySumPrevRight)
-                          then
-                              for gate in (getGatesUsed name) do
-                                  unchecked.Add gate |> ignore
+                            if [ leftOp; rightOp ] |> List.sort <> gates then
+                                [ carrySumPrevLeft; carrySumPrevRight ]
+                            else
+                                let xorIsLeft = leftOp = "XOR"
 
-                              [ name ]
-                          else
-                              let (leftLeft, leftOp, leftRight) = valueToOperation |> Map.find carrySumPrevLeft
+                                let (xorLeft, xorRight) =
+                                    if xorIsLeft then
+                                        (leftLeft, leftRight)
+                                    else
+                                        (rightLeft, rightRight)
 
-                              let (rightLeft, rightOp, rightRight) =
-                                  valueToOperation |> Map.find carrySumPrevRight
+                                let invalid =
+                                    if ([ xorLeft; xorRight ] |> Set.ofList)
+                                       <> ([ yName; xName ] |> Set.ofList) then
+                                        let invalidName =
+                                            if xorIsLeft then
+                                                carrySumPrevLeft
+                                            else
+                                                carrySumPrevRight
 
-                              let gates =
-                                  if index = 2 then
-                                      [ "AND"; "XOR" ]
-                                  else
-                                      [ "OR"; "XOR" ]
+                                        [ invalidName ]
+                                    else
+                                        []
 
-                              if [ leftOp; rightOp ] |> List.sort <> gates then
-                                  [ carrySumPrevLeft; carrySumPrevRight ]
-                              else
-                                  visited.Add carrySumPrevLeft |> ignore
-                                  visited.Add carrySumPrevRight |> ignore
-                                  let xorIsLeft = leftOp = "XOR"
+                                invalid
 
-                                  let (xorLeft, xorRight) =
-                                      if xorIsLeft then
-                                          (leftLeft, leftRight)
-                                      else
-                                          (rightLeft, rightRight)
-
-                                  let invalid =
-                                      if ([ xorLeft; xorRight ] |> Set.ofList)
-                                        <> ([ yName; xName ] |> Set.ofList) then
-                                          let invalidName =
-                                              if xorIsLeft then
-                                                  carrySumPrevLeft
-                                              else
-                                                  carrySumPrevRight
-
-                                          for gate in (getGatesUsed invalidName) do
-                                              unchecked.Add gate |> ignore
-
-                                          [ invalidName ]
-                                      else
-                                          []
-
-                                  invalid
-
-                      checkCarrySumAndPrevCarry (
-                          if inputAndWasLeft then
-                              carryRight
-                          else
-                              carryLeft
-                      )
+                    checkCarrySumAndPrevCarry (
+                        if inputAndWasLeft then
+                            carryRight
+                        else
+                            carryLeft
+                    )
 
         if index = max then
             checkCarry sumName
@@ -379,248 +356,81 @@ let evaluate (inputs: (string * bool) array) (operations: (string * string * str
                         else
                             []
 
-                    visited.Add(if leftInput then sumLeft else sumRight)
-                    |> ignore
-
                     checkCarry (if leftInput then sumRight else sumLeft)
                     @ invalid
             | _ -> [ sumRight; sumLeft ]
 
 
     let invalidPairings = HashSet<(string * string) list>()
-    let invalidPairs = HashSet<(string * string)>()
 
     let rec findPairings
         pairs
         previous
         count
         (values: Set<string>)
-        (mismatched: int array)
         (valueToOperation: Map<string, string * string * string>)
         : Option<(string * string) list> =
         if count = 0 then
             let updatedOps =
-              pairs
-              |> List.fold
-                  (fun acc (a, b) ->
-                      let aGate = acc |> Map.find a
-                      let bGate = acc |> Map.find b
+                pairs
+                |> List.fold
+                    (fun acc (a, b) ->
+                        let aGate = acc |> Map.find a
+                        let bGate = acc |> Map.find b
 
-                      acc |> Map.add b aGate |> Map.add a bGate)
-                  valueToOperation
+                        acc |> Map.add b aGate |> Map.add a bGate)
+                    valueToOperation
 
             let noInvalid =
-              seq { 0..maxVal }
-              |> Seq.forall (fun idx -> findPossibleInvalid updatedOps maxVal idx (HashSet()) |> List.isEmpty)
+                seq { 0..maxVal }
+                |> Seq.forall (fun idx ->
+                    findPossibleInvalid updatedOps maxVal idx
+                    |> List.isEmpty)
+
             if noInvalid then
-            // if mismatched.Length = 0 then
                 Some(pairs)
             else
+                invalidPairings.Add(sortList (pairs |> List.map sort))
+                |> ignore
+
                 None
         else if count % 2 = 1 then
             values
             |> Seq.tryPick (fun v ->
                 let sorted = (sort (previous, v))
 
-                // if ((sorted |> fst = "z00" && sorted |> snd = "z05")
-                //     || (sorted |> fst = "z01" && sorted |> snd = "z02"))
-                //    && not(pairs.IsEmpty) then
-                //     printfn ""
-                // if ((sorted |> fst = "z00" && sorted |> snd = "z05")
-                //     || (sorted |> fst = "z01" && sorted |> snd = "z02"))
-                //    && pairs.IsEmpty then
-                //     printfn ""
+                if invalidPairings.Contains(sortList (sorted :: pairs)) then
+                    None
+                else
+                    let result =
+                        findPairings (sorted :: pairs) "" (count - 1) (values - ([ v ] |> Set.ofList)) valueToOperation
 
-                // if
-                //     invalidPairs.Contains sorted
-                //     || invalidPairings.Contains(sortList (sorted :: pairs))
-                // then
-                //     None
-                // else
-                let aGate = valueToOperation |> Map.find previous
-                let bGate = valueToOperation |> Map.find v
-
-                // let replaced =
-                //     valueToOperation
-                //     |> Map.add previous bGate
-                //     |> Map.add v aGate
-
-                // match evaluateNumber "z" inputs replaced with
-                // | Some (res, _) ->
-                //     let result = bitArrayToDisplay res
-
-
-                    // if (seq { 0..maxVal }
-                    //     |> Seq.exists (fun idx ->
-                    //         result[63 - idx] <> expected[63 - idx]
-                    //         && not (mismatched |> Array.contains idx)))
-                    //    || (seq { 0..maxVal }
-                    //        |> Seq.filter (fun idx -> result[63 - idx] <> expected[63 - idx])
-                    //        |> Seq.length)
-                    //       >= mismatched.Length then
-                    // invalidPairs.Add sorted |> ignore
-
-                    // invalidPairings.Add(sortList (sorted :: pairs))
-                    // |> ignore
-
-                    //     None
-                    // else
-                // let newMismatched =
-                //     seq { 0..63 }
-                //     |> Seq.filter (fun idx -> result[63 - idx] <> expected[63 - idx])
-                //     |> Seq.toArray
-
-                let result =
-                    findPairings
-                        (sorted :: pairs)
-                        ""
-                        (count - 1)
-                        (values - ([ v ] |> Set.ofList))
-                        mismatched
-                        valueToOperation
-
-                match result with
-                | Some a -> Some a
-                | None ->
-                    // invalidPairings.Add(sortList (sorted :: pairs))
-                    // |> ignore
-
-                    None)
-                // | None ->
-                //     // invalidPairs.Add sorted |> ignore
-
-                //     // invalidPairings.Add(sortList (sorted :: pairs))
-                //     // |> ignore
-
-                //     None)
+                    result)
         else
             values
-            |> Seq.tryPick (fun v ->
-                if count = 8 then printfn "%s" v
-                findPairings pairs v (count - 1) (values - ([ v ] |> Set.ofList)) mismatched valueToOperation)
-    // acc
-    // + getPairings pairs v (count - 1) (values - ([ v ] |> Set.ofList)) output)
-    // Some()
-    // values
-    // |> Set.fold
-    //     (fun acc v ->
-    //         acc
-    //         + getPairings pairs v (count - 1) (values - ([ v ] |> Set.ofList)) output)
-    //     output
-
-    let allValues = (valueToOperation |> Map.keys |> Set.ofSeq)
-    let onePairing = getPairings [] "" 2 (allValues - definitelyOkValues) Set.empty
-
-    // let mutable bestForOne = 0
-
-    // let eligible =
-    //     onePairing
-    //     |> Set.filter (function
-    //         | [] -> failwith "Invalid"
-    //         | (a, b) :: _ ->
-    //             let aGate = valueToOperation |> Map.find a
-    //             let bGate = valueToOperation |> Map.find b
-
-    //             let replaced =
-    //                 valueToOperation
-    //                 |> Map.add a bGate
-    //                 |> Map.add b aGate
-
-    //             match evaluateNumber "z" inputs replaced with
-    //             | Some (res, _) ->
-    //                 let result = bitArrayToDisplay res
-
-    //                 if seq { 0..maxVal }
-    //                    |> Seq.exists (fun idx ->
-    //                        result[63 - idx] <> expected[63 - idx]
-    //                        && not (mismatched |> Array.contains idx)) then
-    //                     false
-    //                 else
-    //                     let length =
-    //                         seq { 0..maxVal }
-    //                         |> Seq.filter (fun idx -> result[63 - idx] <> expected[63 - idx])
-    //                         |> Seq.length
-
-    //                     if mismatched.Length - length > bestForOne then
-    //                         bestForOne <- mismatched.Length - length
-
-    //                     length < mismatched.Length
-    //             | None -> false)
-    //     |> Set.toSeq
-    //     |> Seq.collect (function
-    //         | (a, b) :: _ -> [ a; b ]
-    //         | _ -> [])
-    //     |> Seq.distinct
-    //     |> Set.ofSeq
-
-    // let twoPairings = getPairings [] "" 4 (eligible) Set.empty
-    // // printfn "%d" twoPairings.Count
-
-    // let eligibleTwo =
-    //     twoPairings
-    //     |> Set.filter (function
-    //         | (a, b) :: (c, d) :: _ ->
-    //             let aGate = valueToOperation |> Map.find a
-    //             let bGate = valueToOperation |> Map.find b
-    //             let cGate = valueToOperation |> Map.find a
-    //             let dGate = valueToOperation |> Map.find b
-
-    //             let replaced =
-    //                 valueToOperation
-    //                 |> Map.add a bGate
-    //                 |> Map.add b aGate
-    //                 |> Map.add c dGate
-    //                 |> Map.add d cGate
-
-    //             match evaluateNumber "z" inputs replaced with
-    //             | Some (res, _) ->
-    //                 let result = bitArrayToDisplay res
-
-    //                 if seq { 0..maxVal }
-    //                    |> Seq.exists (fun idx ->
-    //                        result[63 - idx] <> expected[63 - idx]
-    //                        && not (mismatched |> Array.contains idx)) then
-    //                     false
-    //                 else
-    //                     let length =
-    //                         seq { 0..maxVal }
-    //                         |> Seq.filter (fun idx -> result[63 - idx] <> expected[63 - idx])
-    //                         |> Seq.length
-
-    //                     // if mismatched.Length - length > bestForOne then
-    //                     //     bestForOne <- mismatched.Length - length
-
-    //                     length > bestForOne
-    //             | None -> false
-    //         | _ -> failwith "Invalid")
-    //     |> Set.toSeq
-    //     |> Seq.collect (function
-    //         | (a, b) :: _ -> [ a; b ]
-    //         | _ -> [])
-    //     |> Seq.distinct
-    //     |> Set.ofSeq
-
-    // findPairings [] "" 8 (allValues) mismatched valueToOperation
-    // |> printfn "%A"
-    let visited = HashSet<string>()
+            |> Seq.tryPick (fun v -> findPairings pairs v (count - 1) (values - ([ v ] |> Set.ofList)) valueToOperation)
 
     let possiblyInvalid =
         seq { 0..maxVal }
-        |> Seq.collect (fun idx -> findPossibleInvalid valueToOperation maxVal idx visited)
+        |> Seq.collect (fun idx -> findPossibleInvalid valueToOperation maxVal idx)
         |> Set.ofSeq
 
-    // let visited = visited |> Set.ofSeq
-    // let unchecked = unchecked |> Set.ofSeq
-    // let possiblyInvalid = possiblyInvalid |> Set.union (unchecked - visited)
-    // printfn "%d" possiblyInvalid.Count
-    let result = findPairings [] "" 8 possiblyInvalid mismatched valueToOperation |> Option.get
-    let allValues = result |> List.collect (fun (a,b) -> [a;b]) |> List.sort
-    String.Join(",", allValues)
-    |> printfn "Part 2: %s"
-    // printfn "%A" eligibleTwo.Count
+    let result =
+        findPairings [] "" 8 possiblyInvalid valueToOperation
+        |> Option.get
 
-    originalZ
+    let allValues =
+        result
+        |> List.collect (fun (a, b) -> [ a; b ])
+        |> List.sort
+
+    let pairs = String.Join(",", allValues)
+
+    originalZ, pairs
 
 let (inputs, operations) = loadData ()
 
-evaluate inputs operations |> printfn "Part 1: %d"
+let part1, part2 = evaluate inputs operations
+
+printfn "Part 1: %d" part1
+printfn "Part 2: %s" part2
