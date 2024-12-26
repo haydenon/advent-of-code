@@ -1,6 +1,7 @@
 ﻿open System
 open System.Collections.Generic
 open System.Collections
+open System.Text.RegularExpressions
 
 let loadData () =
     let text = System.IO.File.ReadAllLines("./input.txt")
@@ -217,6 +218,116 @@ let evaluate (inputs: (string * bool) array) (operations: (string * string * str
             (b, a)
 
     let sortList (pairs: (string * string) list) = pairs |> List.sortBy fst
+    let inputRegex = Regex(@"^[xy][0-9]{2}$")
+
+    let findPossibleInvalid
+        (valueToOperation: Map<string, string * string * string>)
+        max
+        index
+        (visited: HashSet<string>)
+        =
+        // if index = max then
+        //     []
+        // else if index = 0 then
+        //     []
+        // else
+        if index = max then
+          printfn ""
+        let sumName = ("z" + (sprintf "%02d" index))
+        let (sumLeft, sumOp, sumRight) = valueToOperation |> Map.find sumName
+        visited.Add sumName |> ignore
+
+        if sumOp <> "XOR" then
+            [ sumName ]
+        else if index = 0 then
+            if
+                not (inputRegex.IsMatch sumLeft)
+                || not (inputRegex.IsMatch sumRight)
+            then
+                [ sumName ]
+            else
+                []
+        else
+            let (inputLeft, inputOp, inputRight) = valueToOperation |> Map.find sumLeft
+            let yName = ("y" + (sprintf "%02d" index))
+            let xName = ("x" + (sprintf "%02d" index))
+
+            let invalid =
+                if inputOp <> "XOR"
+                   || (inputLeft <> yName && inputRight <> yName)
+                   || (inputLeft <> xName && inputRight <> xName) then
+                    [ sumLeft ]
+                else
+                    []
+
+            visited.Add sumLeft |> ignore
+
+            let checkCarry carryName =
+                let (carryLeft, carryOp, carryRight) = valueToOperation |> Map.find carryName
+                visited.Add carryName |> ignore
+
+                if carryOp <> "OR" then
+                    [ carryName ]
+                else
+                    let (inpAndLeft, inpAndOp, inpAndRight) = valueToOperation |> Map.find carryRight
+                    let yName = ("y" + (sprintf "%02d" (index - 1)))
+                    let xName = ("x" + (sprintf "%02d" (index - 1)))
+                    visited.Add carryRight |> ignore
+
+                    let invalid =
+                        if inpAndOp <> "AND"
+                           || (inpAndLeft <> yName && inpAndRight <> yName)
+                           || (inpAndLeft <> xName && inpAndRight <> xName) then
+                            [ sumLeft ]
+                        else
+                            []
+
+                    let checkCarrySumAndPrevCarry name =
+                        let (carrySumPrevLeft, carrySumPrevOp, carrySumPrevRight) =
+                            valueToOperation |> Map.find name
+
+                        if
+                            carrySumPrevOp <> "AND"
+                            || inputRegex.IsMatch(carrySumPrevLeft)
+                            || inputRegex.IsMatch(carrySumPrevRight)
+                        then
+                            [ name ]
+                        else
+                            let (leftLeft, leftOp, leftRight) = valueToOperation |> Map.find carrySumPrevLeft
+
+                            let (rightLeft, rightOp, rightRight) =
+                                valueToOperation |> Map.find carrySumPrevRight
+
+                            let invalid =
+                                if leftOp = "XOR" then
+                                    visited.Add carrySumPrevLeft |> ignore
+
+                                    if ([ leftLeft; leftRight ] |> Set.ofList)
+                                       <> ([ yName; xName ] |> Set.ofList) then
+                                        [ carrySumPrevLeft ]
+                                    else
+                                        []
+                                else
+                                    []
+
+                            let invalid =
+                                if rightOp = "XOR" then
+                                    visited.Add carrySumPrevRight |> ignore
+
+                                    if ([ rightLeft; rightRight ] |> Set.ofList)
+                                       <> ([ yName; xName ] |> Set.ofList) then
+                                        carrySumPrevRight :: invalid
+                                    else
+                                        invalid
+                                else
+                                    invalid
+
+                            invalid
+
+                    (checkCarrySumAndPrevCarry carryLeft) @ invalid
+
+            (checkCarry sumRight) @ invalid
+
 
     let invalidPairings = HashSet<(string * string) list>()
     let invalidPairs = HashSet<(string * string)>()
@@ -273,7 +384,8 @@ let evaluate (inputs: (string * bool) array) (operations: (string * string * str
                                 && not (mismatched |> Array.contains idx)))
                            || (seq { 0..maxVal }
                                |> Seq.filter (fun idx -> result[63 - idx] <> expected[63 - idx])
-                               |> Seq.length) >= mismatched.Length then
+                               |> Seq.length)
+                              >= mismatched.Length then
                             invalidPairs.Add sorted |> ignore
 
                             invalidPairings.Add(sortList (sorted :: pairs))
@@ -304,6 +416,7 @@ let evaluate (inputs: (string * bool) array) (operations: (string * string * str
                                 None
                     | None ->
                         invalidPairs.Add sorted |> ignore
+
                         invalidPairings.Add(sortList (sorted :: pairs))
                         |> ignore
 
@@ -415,8 +528,18 @@ let evaluate (inputs: (string * bool) array) (operations: (string * string * str
     //     |> Seq.distinct
     //     |> Set.ofSeq
 
-    findPairings [] "" 8 (allValues - definitelyOkValues) mismatched valueToOperation
-    |> printfn "%A"
+    // findPairings [] "" 8 (allValues) mismatched valueToOperation
+    // |> printfn "%A"
+    let visited = HashSet<string>()
+
+    let possiblyInvalid =
+        seq { 0..maxVal }
+        |> Seq.collect (fun idx -> findPossibleInvalid valueToOperation maxVal idx visited)
+        |> Set.ofSeq
+
+    let visited = visited |> Set.ofSeq
+    let possiblyInvalid = possiblyInvalid |> Set.union (allValues - visited)
+    printfn "%d" possiblyInvalid.Count
     // printfn "%A" eligibleTwo.Count
 
     originalZ
