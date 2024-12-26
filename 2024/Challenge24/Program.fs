@@ -132,84 +132,11 @@ let evaluate (inputs: (string * bool) array) (operations: (string * string * str
         operations
         |> Array.fold (fun acc (left, op, right, target) -> acc |> Map.add target (left, op, right)) Map.empty
 
-    // let getNumberForPrefix  =
-
     let arr, maxVal =
         evaluateNumber "z" inputs valueToOperation
         |> Option.get
 
     let originalZ = bitArrayToInt64 arr
-
-    let xArr, _ =
-        evaluateNumber "x" inputs valueToOperation
-        |> Option.get
-
-    let yArr, _ =
-        evaluateNumber "y" inputs valueToOperation
-        |> Option.get
-
-    let expected =
-        (bitArrayToInt64 xArr + bitArrayToInt64 yArr)
-        |> numberToDisplay
-
-    let actual = bitArrayToDisplay arr
-
-    let rec getGatesUsed name =
-        match valueToOperation |> Map.tryFind name with
-        | None -> Set.empty
-        | Some (left, _, right) ->
-            (getGatesUsed left + getGatesUsed right)
-            |> Set.add name
-
-    let mismatched =
-        seq { 0..63 }
-        |> Seq.filter (fun idx -> actual[63 - idx] <> expected[63 - idx])
-        |> Seq.toArray
-
-    let allGates = (valueToOperation |> Map.keys |> Set.ofSeq)
-
-    let definitelyOkValues =
-        seq { 0..maxVal }
-        |> Seq.fold
-            (fun acc idx ->
-                if mismatched |> Array.contains idx then
-                    acc - getGatesUsed (("z" + (sprintf "%02d" idx)))
-                else
-                    acc)
-            allGates
-
-    let addPairings (pairs: (string * string) list) pairings =
-        let sorted =
-            pairs
-            |> List.map (fun (a, b) ->
-                if a.CompareTo(b) < 0 then
-                    (a, b)
-                else
-                    (b, a))
-            |> List.sortBy fst
-
-        pairings |> Set.add sorted
-
-    let rec getPairings pairs previous count (values: Set<string>) output =
-        if count = 0 then
-            addPairings pairs output
-        else if count % 2 = 1 then
-
-            values
-            |> Set.fold
-                (fun acc v ->
-                    let thisValue = ([ v ] |> Set.ofList)
-
-                    acc
-                    |> Set.union (getPairings ((v, previous) :: pairs) "" (count - 1) (values - thisValue) output))
-                output
-        else
-            values
-            |> Set.fold
-                (fun acc v ->
-                    acc
-                    + getPairings pairs v (count - 1) (values - ([ v ] |> Set.ofList)) output)
-                output
 
     let sort (a: string, b: string) =
         if a.CompareTo(b) < 0 then
