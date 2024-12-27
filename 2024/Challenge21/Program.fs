@@ -84,6 +84,46 @@ let allDirPaths =
     |> Seq.map (fun (a, b) -> ((a, b), cachePaths dirCoords (a, b)))
     |> Map.ofSeq
 
+let dirs = [ '>'; '^'; '<'; 'v' ]
+
+let pathCache = Dictionary<(char * char) * int, int64>()
+
+let rec getBestPathCost source dest levels =
+    let cacheKey = ((source, dest), levels)
+
+    if pathCache.ContainsKey cacheKey then
+        pathCache[cacheKey]
+    else
+        let pathMap =
+            if (source = 'A' && dest = 'A') || dirs |> List.contains source
+               || dirs |> List.contains dest then
+                allDirPaths
+            else
+                allNumPaths
+
+        if source = dest then
+            1L // What to do here?
+        else
+            let pathsFromHere = pathMap |> Map.find (source, dest)
+
+            let result =
+                if levels = 0 then
+                    pathsFromHere
+                    |> List.map List.length
+                    |> List.min
+                    |> int64
+                    |> ((+) 1L)
+                else
+                    pathsFromHere
+                    |> List.map (fun path ->
+                        'A' :: path @ ['A']
+                        |> List.pairwise
+                        |> List.sumBy (fun (src, dst) -> getBestPathCost src dst (levels - 1)))
+                    |> List.min
+
+            pathCache.Add(cacheKey, result)
+            result
+
 let rec getPaths pathMap currKey keys (paths: char list list) =
     match keys with
     | [] -> paths
@@ -189,30 +229,45 @@ let printSequence sequence =
     outputs |> List.iter print
 
 // New attempt
-let dirs = [ '<'; '^'; 'v'; '>' ]
+let bestPathCache = Dictionary<(char * char), char list>()
 
 let getBestPath source dest =
-    let paths =
-        if dirs |> List.contains source
-           || dirs |> List.contains dest then
-            allDirPaths
-        else
-            allNumPaths
+    if bestPathCache.ContainsKey(source, dest) then
+        bestPathCache[(source, dest)]
+    else
+        let paths =
+            if dirs |> List.contains source
+               || dirs |> List.contains dest then
+                allDirPaths
+            else
+                allNumPaths
 
-    let (_, _, results) =
-        seq { 1..3 }
-        |> Seq.fold
-            (fun (src, paths, solutions) _ ->
-                ('A',
-                 allDirPaths,
-                 solutions
-                 |> List.collect (fun dst -> getPaths paths src dst [ [] ])))
-            (source, paths, [ [ dest ] ])
+        let (_, _, results) =
+            seq { 1..4 }
+            |> Seq.fold
+                (fun (src, paths, solutions) _ ->
+                    ('A',
+                     allDirPaths,
+                     solutions
+                     |> List.collect (fun dst -> getPaths paths src dst [ [] ])))
+                (source, paths, [ [ dest ] ])
 
-    results
-    |> List.head
-    |> fun a -> evaluate [ (dirCoords, (2, 0)) ] dirCoords (2, 0) a [] []
-    |> List.last
+        let output =
+            results
+            |> List.head
+            |> fun a ->
+                evaluate
+                    [ (dirCoords, (2, 0)) //]
+                      (dirCoords, (2, 0)) ]
+                    dirCoords
+                    (2, 0)
+                    a
+                    []
+                    []
+            |> List.last
+
+        bestPathCache.Add((source, dest), output)
+        output
 
 let cache = Dictionary<(char * char) * int, int64>()
 
@@ -229,12 +284,15 @@ let rec findShortest levels source dest =
                 ('A' :: next)
                 |> List.pairwise
                 |> List.sumBy (fun (s, d) ->
+                    true |> ignore
+
                     if cache.ContainsKey((source, dest), levels - 1) then
                         cache[(source, dest), levels - 1]
                     else
                         findShortest (levels - 1) s d)
 
         cache.Add(((source, dest), levels), result)
+        printfn "%c - %c %d: %d" source dest levels result
         result
 
 let data = loadData ()
@@ -261,6 +319,23 @@ let getComplexities keys =
 
     minLength * num
 
+
+let getComplexities2 depth keys =
+  let num =
+        keys
+        |> List.take 3
+        |> Array.ofList
+        |> String
+        |> int64
+  let keys = 'A' :: keys
+  let minLength =
+    keys
+    |> List.pairwise
+    |> List.map (fun (src, dst) -> getBestPathCost src dst depth)
+    |> List.sum
+  minLength * num
+
+
 // data
 // |> List.map getComplexities
 // |> List.sum
@@ -272,13 +347,16 @@ let getComplexities keys =
 
 
 
-//("37" |> Seq.toList)
-let level1 = getShortest numberCoords (2, 3) data[4] []
-let level2 = getShortest dirCoords (2, 0) level1 []
-let level3 = getShortest dirCoords (2, 0) level2 []
-level3 |> List.toArray |> String |> printSequence
+// //("37" |> Seq.toList)
+// let level1 = getShortest numberCoords (2, 3) data[4] []
+// let level2 = getShortest dirCoords (2, 0) level1 []
+// let level3 = getShortest dirCoords (2, 0) level2 []
+// level3 |> List.toArray |> String |> printSequence
 
-findShortest 25 '3' '7' |> printfn "%A"
+// 'A' :: data[4]
+// |> List.pairwise
+// |> List.sumBy (fun (s, d) -> findShortest 2 s d)
+// |> printfn "%A"
 // |> Seq.toList
 // |> fun keys -> evaluate [] dirCoords (2,0) keys []
 // |> fun keys -> evaluate [] dirCoords (2,0) keys []
@@ -290,3 +368,14 @@ findShortest 25 '3' '7' |> printfn "%A"
 // |> printfn "%A"
 
 // allDirPaths |> printfn "%A"
+
+
+data
+|> List.map (getComplexities2 2)
+|> List.sum
+|> printfn "Part 1: %d"
+
+data
+|> List.map (getComplexities2 25)
+|> List.sum
+|> printfn "Part 2: %d"
